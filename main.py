@@ -225,7 +225,8 @@ def analysis_cycle():
             candles_1m=candles_1m if not candles_1m.empty else None,
             tick_info=tick_info if tick_info["bid"] > 0 else None,
             mtfa_data=mtfa_data,
-            market_regime=market_regime
+            market_regime=market_regime,
+            ml_report=ml_report_cache
         )
 
         log.info(f"🧠 Sending data to {config.CLAUDE_MODEL}...")
@@ -440,6 +441,23 @@ def analysis_cycle():
         log.info("═══════════════════════════════════════════════════════")
         log.info("        🧠 CLAUDE ANALYSIS CYCLE END")
         log.info("═══════════════════════════════════════════════════════\n")
+
+
+# ═══════════════════════════════════════════════════════════════
+# ML ANALYZER LOOP
+# ═══════════════════════════════════════════════════════════════
+
+ml_report_cache = ""
+
+def update_ml_report():
+    """Runs every hour to update Claude's statistical self-awareness report."""
+    global ml_report_cache
+    try:
+        from data.ml_analyzer import analyze_edges
+        ml_report_cache = analyze_edges() or "Not enough data for ML analysis yet."
+        log.info("🧠 ML Edge Report updated successfully.")
+    except Exception as e:
+        log.warning(f"Failed to update ML Edge Report: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -823,11 +841,18 @@ def on_connected(c):
         config.print_config_summary()
         log.info("✅ All systems go!\n")
 
-        # Step 8: Run initial analysis
+        # Step 8: Run initial ML analysis and Claude analysis
+        log.info("🧠 Running initial ML edge analysis...")
+        update_ml_report()
+        
         log.info("🧠 Running initial Claude analysis...")
         yield analysis_cycle()
 
         # Step 9: Start scheduled loops
+        _ml_loop = task.LoopingCall(update_ml_report)
+        _ml_loop.start(3600, now=False)  # Every 1 hour
+        log.info("🧠 ML Analyzer loop: every 60 min")
+
         _analysis_loop = task.LoopingCall(analysis_cycle)
         _analysis_loop.start(config.ANALYSIS_INTERVAL_MINUTES * 60, now=False)
         log.info(f"⏰ Analysis loop: every {config.ANALYSIS_INTERVAL_MINUTES} min")

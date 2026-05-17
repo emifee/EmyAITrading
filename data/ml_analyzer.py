@@ -24,7 +24,8 @@ def analyze_edges():
 
     try:
         conn = sqlite3.connect(DB_PATH)
-        df = pd.read_sql_query("SELECT * FROM trades", conn)
+        # Use a sliding window of the last 100 trades so data is always fresh and dynamic
+        df = pd. pd.read_sql_query("SELECT * FROM trades ORDER BY opened_at DESC LIMIT 100", conn)
         conn.close()
     except Exception as e:
         print(f"Failed to load DB: {e}")
@@ -42,57 +43,62 @@ def analyze_edges():
     # Define a win vs loss
     df['is_win'] = df['pnl_dollars'] > 0
 
+    report_lines = []
+    report_lines.append(f"📊 EMY AI — BIG DATA EDGE REPORT (Last {len(df)} Trades)")
+    report_lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    report_lines.append(f"Overall Win Rate: {(df['is_win'].mean() * 100):.1f}%")
+    report_lines.append("="*50 + "\n")
+
+    # 1. Edge by Market Regime
+    report_lines.append("📈 1. WIN RATE BY MARKET REGIME")
+    report_lines.append("-" * 30)
+    regime_stats = df.groupby('regime').agg(
+        trades=('is_win', 'count'),
+        win_rate=('is_win', 'mean'),
+        avg_pnl=('pnl_dollars', 'mean')
+    ).reset_index()
+    
+    for _, row in regime_stats.iterrows():
+        report_lines.append(f"Regime: {row['regime']:<15} | Trades: {row['trades']:<3} | Win Rate: {(row['win_rate']*100):.1f}% | Avg PnL: ${row['avg_pnl']:.2f}")
+        if row['trades'] >= 5 and row['win_rate'] < 0.40:
+            report_lines.append(f"   ⚠️ WARNING: You are bleeding money in {row['regime']}. Consider blocking this regime.")
+    report_lines.append("")
+
+    # 2. Edge by Hour of Day
+    report_lines.append("⏰ 2. WIN RATE BY HOUR OF DAY (UTC)")
+    report_lines.append("-" * 30)
+    hour_stats = df.groupby('hour').agg(
+        trades=('is_win', 'count'),
+        win_rate=('is_win', 'mean'),
+        total_pnl=('pnl_dollars', 'sum')
+    ).reset_index()
+    
+    for _, row in hour_stats.iterrows():
+        report_lines.append(f"Hour {int(row['hour']):02d}:00 UTC | Trades: {row['trades']:<3} | Win Rate: {(row['win_rate']*100):.1f}% | Total PnL: ${row['total_pnl']:.2f}")
+        if row['trades'] >= 3 and row['win_rate'] < 0.33:
+            report_lines.append(f"   🛑 DEAD ZONE DETECTED: Avoid trading at {int(row['hour']):02d}:00 UTC.")
+    report_lines.append("")
+
+    # 3. Edge by Side (Buy vs Sell)
+    report_lines.append("🔄 3. WIN RATE BY DIRECTION (BUY vs SELL)")
+    report_lines.append("-" * 30)
+    side_stats = df.groupby('side').agg(
+        trades=('is_win', 'count'),
+        win_rate=('is_win', 'mean'),
+        avg_pnl=('pnl_dollars', 'mean')
+    ).reset_index()
+    
+    for _, row in side_stats.iterrows():
+        report_lines.append(f"Side: {row['side']:<5} | Trades: {row['trades']:<3} | Win Rate: {(row['win_rate']*100):.1f}%")
+    report_lines.append("")
+
+    report_str = "\n".join(report_lines)
+
+    # Save to file for human readability
     with open(REPORT_PATH, "w") as f:
-        f.write(f"📊 EMY AI — BIG DATA EDGE REPORT\n")
-        f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"Total Trades Analyzed: {len(df)}\n")
-        f.write(f"Overall Win Rate: {(df['is_win'].mean() * 100):.1f}%\n")
-        f.write("="*50 + "\n\n")
+        f.write(report_str)
 
-        # 1. Edge by Market Regime
-        f.write("📈 1. WIN RATE BY MARKET REGIME\n")
-        f.write("-" * 30 + "\n")
-        regime_stats = df.groupby('regime').agg(
-            trades=('is_win', 'count'),
-            win_rate=('is_win', 'mean'),
-            avg_pnl=('pnl_dollars', 'mean')
-        ).reset_index()
-        
-        for _, row in regime_stats.iterrows():
-            f.write(f"Regime: {row['regime']:<15} | Trades: {row['trades']:<3} | Win Rate: {(row['win_rate']*100):.1f}% | Avg PnL: ${row['avg_pnl']:.2f}\n")
-            if row['trades'] >= 5 and row['win_rate'] < 0.40:
-                f.write(f"   ⚠️ WARNING: You are bleeding money in {row['regime']}. Consider blocking this regime.\n")
-        f.write("\n")
-
-        # 2. Edge by Hour of Day
-        f.write("⏰ 2. WIN RATE BY HOUR OF DAY (UTC)\n")
-        f.write("-" * 30 + "\n")
-        hour_stats = df.groupby('hour').agg(
-            trades=('is_win', 'count'),
-            win_rate=('is_win', 'mean'),
-            total_pnl=('pnl_dollars', 'sum')
-        ).reset_index()
-        
-        for _, row in hour_stats.iterrows():
-            f.write(f"Hour {int(row['hour']):02d}:00 UTC | Trades: {row['trades']:<3} | Win Rate: {(row['win_rate']*100):.1f}% | Total PnL: ${row['total_pnl']:.2f}\n")
-            if row['trades'] >= 3 and row['win_rate'] < 0.33:
-                f.write(f"   🛑 DEAD ZONE DETECTED: Avoid trading at {int(row['hour']):02d}:00 UTC.\n")
-        f.write("\n")
-
-        # 3. Edge by Side (Buy vs Sell)
-        f.write("🔄 3. WIN RATE BY DIRECTION (BUY vs SELL)\n")
-        f.write("-" * 30 + "\n")
-        side_stats = df.groupby('side').agg(
-            trades=('is_win', 'count'),
-            win_rate=('is_win', 'mean'),
-            avg_pnl=('pnl_dollars', 'mean')
-        ).reset_index()
-        
-        for _, row in side_stats.iterrows():
-            f.write(f"Side: {row['side']:<5} | Trades: {row['trades']:<3} | Win Rate: {(row['win_rate']*100):.1f}%\n")
-        f.write("\n")
-
-    print(f"✅ ML Edge Analysis complete! Report saved to {REPORT_PATH}")
+    return report_str
 
 if __name__ == "__main__":
     print("🧠 Booting Emy AI Big Data Engine...")

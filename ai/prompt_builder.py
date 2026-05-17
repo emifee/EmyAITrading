@@ -45,7 +45,7 @@ def _get_market_session() -> tuple:
 def format_for_claude(candles_15m: pd.DataFrame, indicators: dict,
                        account: dict, candles_1m: pd.DataFrame = None,
                        tick_info: dict = None, mtfa_data: dict = None,
-                       market_regime: str = "UNKNOWN") -> str:
+                       market_regime: str = "UNKNOWN", ml_report: str = "") -> str:
     """
     Build comprehensive market data prompt for Trend + Liquidity Sweep strategy.
 
@@ -342,6 +342,10 @@ CURRENT PRICE: ${current_price:,.2f}
 ─── SESSION ─────────────────────────────────────────
 Session: {session_name}
 Grade: {session_grade} {'(Prime entry window)' if session_grade == 'A' else '(Normal trading)'}
+
+─── 🚨 YOUR STATISTICAL WEAKNESSES ───
+{ml_report if ml_report else 'No statistical edge report available yet.'}
+⚡ ML RULE: Review the report above. If the current regime or hour is marked as a DEAD ZONE or you are bleeding money, you MUST be extremely cautious. Do not take B-grade setups in weak environments.
 
 {macro_section}
 {news_section}
