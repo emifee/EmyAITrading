@@ -46,3 +46,19 @@ This document serves as a repository for future architectural ideas and features
 2. **Retail Sentiment Integration:** Pull "Client Sentiment" data from the broker (e.g., "82% of retail is short"). Feed this to Claude to use as a contrarian indicator, trading *against* the retail herd.
 3. **Session Liquidity Guard:** Hardcode Python to only allow entries during London and New York overlaps, avoiding the choppy, low-volume "Dead Zones" of the late Asian session.
 4. **Absolute Trend Alignment:** Force a rule where Claude can only buy if both the Daily (D1) and 4-Hour (H4) EMAs are bullish, completely eliminating low-probability counter-trend trades.
+
+---
+
+## 🔬 Phase 6: The "Statistical Incubation" Protocol (Current Status)
+**The Golden Rule of Quant Trading: Do not over-engineer a system that is already profitable.**
+Adding too many features can break what is already working. Therefore, the system is now entering a **14-Day Statistical Incubation Phase**. No new features will be added. We simply let it run, let it breathe, and monitor the live data.
+
+### 🚨 Contingency & Diagnostic Plan (If the bot bleeds this week)
+If the system starts bleeding capital in the upcoming week, we do **not** panic and rewrite the code. Instead, we follow this diagnostic tracking protocol:
+
+1. **Check the Hourly Edge Report:** Review `edge_report.txt`. Did the bleed happen exclusively in a new "Dead Zone" (e.g., 18:00 UTC)? If so, the fix is simply hardcoding a time-block.
+2. **Review the Market Regime:** Was the market in a `TRANSITIONING` or `UNKNOWN` state all week? The system hates low-volatility chop. We can increase the ADX requirement to completely avoid chop.
+3. **Analyze the Confidence vs. Result:** Did the bot lose trades where it was only 60% confident? If yes, we simply raise `MIN_CONFIDENCE` from 60 to 70. 
+4. **Examine the Fundamental Trigger:** Did the losses occur exactly 5 minutes after a High-Impact news drop (like NFP)? If so, the Macro Feed is working, but Claude failed to respect it. We would then hardcode Python to forcefully kill all trades during High-Impact news windows.
+
+By tracking these 4 metrics during the incubation phase, we can fix any "bleeding" with microscopic surgical tweaks, rather than massive code rewrites.
