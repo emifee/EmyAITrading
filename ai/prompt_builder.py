@@ -249,6 +249,20 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
         except Exception as e:
             log.debug(f"Macro reports not available: {e}")
 
+        # ─── Live Macroeconomic News ──────────────────────────
+        news_section = ""
+        try:
+            from data.macro_feed import get_live_macro_news
+            news_data = get_live_macro_news(max_events=3)
+            news_section = (
+                "─── 📰 LIVE MACROECONOMIC NEWS ──────────────────\n"
+                f"{news_data}\n"
+                "⚡ NEWS RULE: If High-Impact news is scheduled within the next 2 hours, be extremely cautious or HOLD.\n"
+                "If news just dropped, expect massive liquidity sweeps. Use fundamental context to justify technical moves.\n\n"
+            )
+        except Exception as e:
+            log.debug(f"Macro news feed not available: {e}")
+
         # ─── Multi-Timeframe Analysis (MTFA) ──────────────────
         mtfa_section = ""
         if mtfa_data:
@@ -330,6 +344,7 @@ Session: {session_name}
 Grade: {session_grade} {'(Prime entry window)' if session_grade == 'A' else '(Normal trading)'}
 
 {macro_section}
+{news_section}
 {mtfa_section}
 {trend_section}{key_levels_section}
 {sweep_data}{supp_section}

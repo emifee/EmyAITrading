@@ -443,6 +443,66 @@ def analysis_cycle():
 
 
 # ═══════════════════════════════════════════════════════════════
+# TIER 1.5: Volatility Tripwire (every 60 sec)
+# ═══════════════════════════════════════════════════════════════
+
+last_tripwire_time = None
+
+@defer.inlineCallbacks
+def tripwire_cycle():
+    """
+    Runs every 60 seconds. Checks 1m volume for massive spikes.
+    If it detects an explosion, it forces an out-of-schedule analysis_cycle.
+    """
+    global last_tripwire_time
+    
+    # Don't trigger if market is closed
+    if not is_market_open():
+        return
+        
+    try:
+        candles_1m = tick_agg.get_candles(1)
+        if candles_1m.empty or len(candles_1m) < 15:
+            return
+            
+        # Get the latest closed candle and the previous 14 candles
+        # Note: The absolute last row might still be forming, so we look at the last closed one
+        recent = candles_1m.iloc[-16:-1]
+        latest_closed = recent.iloc[-1]
+        previous_14 = recent.iloc[:-1]
+        
+        avg_vol = previous_14['volume'].mean()
+        if avg_vol == 0:
+            return
+            
+        current_vol = latest_closed['volume']
+        vol_ratio = current_vol / avg_vol
+        
+        # Condition: Volume > 300% of average AND it's actually decent volume (e.g., > 50 ticks)
+        if vol_ratio >= 3.0 and current_vol > 50:
+            now = datetime.now(timezone.utc)
+            
+            # Cooldown: Don't trigger if we just triggered within 15 minutes
+            if last_tripwire_time is not None:
+                mins_since = (now - last_tripwire_time).total_seconds() / 60
+                if mins_since < 15:
+                    return
+            
+            last_tripwire_time = now
+            log.warning(f"⚡ VOLATILITY TRIPWIRE TRIGGERED! 1m Volume spike detected ({vol_ratio:.1f}x average)")
+            
+            if HAS_TELEGRAM_BOT:
+                send_bot_message(f"⚡ *VOLATILITY TRIPWIRE TRIGGERED*\nMassive 1-minute volume spike ({vol_ratio:.1f}x average) detected. Waking Claude up early!")
+                
+            # Fire analysis cycle out of schedule
+            reactor.callLater(0, analysis_cycle)
+            
+    except Exception as e:
+        log.error(f"Tripwire error: {e}")
+
+
+
+# ═══════════════════════════════════════════════════════════════
 # TIER 3: Local Position Monitor (every 15 min)
 # ═══════════════════════════════════════════════════════════════
 
@@ -775,6 +835,10 @@ def on_connected(c):
         _monitor_loop = task.LoopingCall(monitor_cycle)
         _monitor_loop.start(config.MONITOR_INTERVAL_MINUTES * 60, now=False)
         log.info(f"📡 Monitor loop: every {config.MONITOR_INTERVAL_MINUTES} min")
+
+        _tripwire_loop = task.LoopingCall(tripwire_cycle)
+        _tripwire_loop.start(60, now=False)
+        log.info("⚡ Tripwire loop: every 60 seconds")
 
         log.info("🚀 System is LIVE! Collecting ticks and analyzing...\n")
 
