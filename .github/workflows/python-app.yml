@@ -1,0 +1,35 @@
+name: Emy AI Trading - Automated Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.9"
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    - name: Test with pytest
+      env:
+        ANTHROPIC_API_KEY: "mock_api_key_for_tests"
+        CTRADER_ACCESS_TOKEN: "mock_token"
+        CTRADER_ACCOUNT_ID: "mock_id"
+        CTRADER_HOST: "demo"
+      run: |
+        pip install pytest pytest-asyncio
+        pytest tests/
