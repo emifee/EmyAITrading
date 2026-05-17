@@ -62,3 +62,10 @@ If the system starts bleeding capital in the upcoming week, we do **not** panic 
 4. **Examine the Fundamental Trigger:** Did the losses occur exactly 5 minutes after a High-Impact news drop (like NFP)? If so, the Macro Feed is working, but Claude failed to respect it. We would then hardcode Python to forcefully kill all trades during High-Impact news windows.
 
 By tracking these 4 metrics during the incubation phase, we can fix any "bleeding" with microscopic surgical tweaks, rather than massive code rewrites.
+
+---
+
+## 🕯️ Phase 7: Multi-Timeframe Candlestick Pattern Injection (H4/D1)
+**The Problem:** Claude currently reads exact Open, High, Low, Close (OHLC) price action data for the M15 and M1 charts. It is excellent at spotting short-term pins and engulfing setups. However, it only receives EMA and RSI values for the Higher Timeframes (H1/H4), meaning it cannot "see" massive H4 price action rejections.
+**The Solution:** Inject raw OHLC data for the last 3 candles of the H1 and H4 timeframes directly into the `mtfa_section` of the prompt.
+**The Benefit:** Institutional price-action precision. Claude will be able to cross-reference an M15 breakout with the exact candlestick shape of the overarching 4-Hour trend. If the 4-Hour candle is a massive bearish pin bar, Claude will instantly reject any M15 buy signals, dramatically increasing the win rate.
