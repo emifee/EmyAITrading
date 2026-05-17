@@ -192,8 +192,15 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
                                 f"\n─── 🔍 PATTERN ANALYSIS ─────────────────────────\n"
                                 f"BUY trades: {sa['buy_total']} total, {sa['buy_wr']}% WR, P&L: ${sa['buy_pnl']:,.2f}\n"
                                 f"SELL trades: {sa['sell_total']} total, {sa['sell_wr']}% WR, P&L: ${sa['sell_pnl']:,.2f}\n"
-                                f"Current streak: {patterns['streak']}\n"
+                                f"Current losing streak: {patterns['streak']}\n"
                             )
+
+                            if patterns.get('streak', 0) >= 2:
+                                journal_section += (
+                                    f"\n🚨🚨 URGENT WARNING: YOU HAVE LOST {patterns['streak']} TRADES IN A ROW! 🚨🚨\n"
+                                    f"Your previous analysis was incorrect. Do NOT take sub-optimal trades.\n"
+                                    f"You MUST perform significantly deeper analysis for the next trade. If in doubt, HOLD.\n"
+                                )
 
                             if patterns.get("lessons"):
                                 journal_section += "\n⚠️ CRITICAL LESSONS (MUST FOLLOW):\n"
