@@ -850,8 +850,8 @@ def on_connected(c):
 
         # Step 9: Start scheduled loops
         _ml_loop = task.LoopingCall(update_ml_report)
-        _ml_loop.start(3600, now=False)  # Every 1 hour
-        log.info("🧠 ML Analyzer loop: every 60 min")
+        _ml_loop.start(43200, now=False)  # Every 12 hours (12 * 60 * 60)
+        log.info("🧠 ML Analyzer loop: every 12 hours")
 
         _analysis_loop = task.LoopingCall(analysis_cycle)
         _analysis_loop.start(config.ANALYSIS_INTERVAL_MINUTES * 60, now=False)
