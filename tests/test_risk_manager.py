@@ -53,8 +53,8 @@ class TestCalculatePositionSize:
             entry=3200.0,
             stop_loss=3150.0,  # $50 distance
         )
-        # $20 / $50 = 0.4
-        assert result == 0.4
+        # $20 / $50 = 0.4, with 0.5x multiplier = 0.2
+        assert result == 0.2
 
     def test_risk_capped_at_max(self):
         """Risk percentage above max should be capped."""
@@ -64,8 +64,8 @@ class TestCalculatePositionSize:
             entry=3200.0,
             stop_loss=3180.0,
         )
-        # Capped: $20 / $20 = 1.0
-        assert result == 1.0
+        # Capped: $20 / $20 = 1.0, with 0.5x multiplier = 0.5
+        assert result == 0.5
 
     def test_zero_stop_distance(self):
         """SL equal to entry should return 0."""
@@ -85,8 +85,8 @@ class TestCalculatePositionSize:
             entry=3200.0,
             stop_loss=3220.0,  # SL above for shorts
         )
-        # $20 / $20 = 1.0
-        assert result == 1.0
+        # $20 / $20 = 1.0, with 0.5x multiplier = 0.5
+        assert result == 0.5
 
 
 class TestValidateRiskReward:
@@ -109,11 +109,11 @@ class TestValidateRiskReward:
         ) is True
 
     def test_bad_rr_ratio(self):
-        """1:1 R:R should fail."""
+        """0.5:1 R:R should fail."""
         assert validate_risk_reward(
             entry=3200.0,
             stop_loss=3190.0,
-            take_profit=3210.0,
+            take_profit=3205.0, # reward = 5, risk = 10
         ) is False
 
     def test_zero_risk(self):

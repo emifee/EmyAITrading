@@ -35,10 +35,10 @@ class TestParseRawResponse:
         result = parse_raw_response(raw)
         assert result["action"] == "HOLD"
 
-    def test_invalid_json_raises(self):
-        """Should raise ValueError for non-JSON."""
-        with pytest.raises(ValueError):
-            parse_raw_response("This is not JSON at all")
+    def test_invalid_json_returns_fallback(self):
+        """Should return fallback HOLD decision for non-JSON."""
+        result = parse_raw_response("This is not JSON at all")
+        assert result["action"] == "HOLD"
 
 
 class TestValidateDecision:
@@ -49,6 +49,7 @@ class TestValidateDecision:
         base = {
             "action": "BUY",
             "confidence": 75,
+            "confidence_level": "high",
             "entry_price": 3200.00,
             "stop_loss": 3185.00,
             "take_profit": 3230.00,
@@ -92,7 +93,7 @@ class TestValidateDecision:
 
     def test_position_size_capped(self):
         """Position size > 2% should be capped."""
-        decision = self._make_decision(position_size_pct=5.0)
+        decision = self._make_decision(position_size_pct=5.0, confidence=80)
         validate_decision(decision)
         assert decision["position_size_pct"] == 2.0
 
