@@ -1,0 +1,25 @@
+# ─── Emy AI Trading System Dependencies ──────────────────────
+# Broker: cTrader Open API
+ctrader-open-api>=0.9.0
+
+# AI: Claude
+anthropic>=0.25.0
+
+# Data processing
+pandas>=2.1.0
+ta>=0.11.0
+
+# HTTP requests
+requests>=2.31.0
+
+# Telegram bot (interactive commands + alerts)
+python-telegram-bot>=20.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Logging
+loguru>=0.7.0
+
+# Testing
+pytest>=7.4.0
