@@ -232,11 +232,9 @@ def analysis_cycle():
         log.info(f"🧠 Sending data to {config.CLAUDE_MODEL}...")
         decision = get_trading_decision(prompt)
 
-        log.info(
-            f"Claude decision: {decision['action']} | "
-            f"Confidence: {decision.get('confidence', 'N/A')} | "
-            f"Reason: {decision.get('reason', 'N/A')}"
-        )
+        log.info(f"🧠 Claude Decision: {decision['action']}")
+        log.info(f"🎯 Confidence:    {decision.get('confidence', 'N/A')}%")
+        log.info(f"📝 Reason:        {decision.get('reason', 'N/A')}")
 
         # Log usage stats
         stats = get_usage_stats()
