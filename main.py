@@ -10,6 +10,8 @@ Three-tier architecture running on Twisted reactor:
 import signal
 import sys
 import time
+import warnings
+warnings.filterwarnings("ignore")
 from datetime import datetime, timezone
 
 from twisted.internet import reactor, defer, task
@@ -463,6 +465,12 @@ def update_ml_report():
 # ═══════════════════════════════════════════════════════════════
 
 last_tripwire_time = None
+
+def is_market_open():
+    now = datetime.now(timezone.utc)
+    if now.weekday() == 5: return False
+    if now.weekday() == 6 and now.hour < 21: return False
+    return True
 
 @defer.inlineCallbacks
 def tripwire_cycle():
