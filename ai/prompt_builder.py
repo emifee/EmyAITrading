@@ -174,13 +174,16 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
                     if recent:
                         journal_section += "\nLast 5 trades:\n"
                         for t in recent:
-                            emoji = "✅" if t["pnl_dollars"] > 0 else "❌"
+                            pnl = t.get('pnl_dollars') or 0
+                            exit_p = t.get('exit_price') or 0
+                            rr = t.get('risk_reward') or 0
+                            emoji = "✅" if pnl > 0 else "❌"
                             journal_section += (
                                 f"  {emoji} {t['side']} @ ${t['entry_price']:,.2f} → "
-                                f"${t.get('exit_price', 0):,.2f} | "
-                                f"P&L: ${t['pnl_dollars']:,.2f} | "
-                                f"R:R: {t.get('risk_reward', 0)} | "
-                                f"{t.get('exit_reason', '?')}\n"
+                                f"${exit_p:,.2f} | "
+                                f"P&L: ${pnl:,.2f} | "
+                                f"R:R: {rr} | "
+                                f"{t.get('exit_reason') or '?'}\n"
                             )
 
                     # ─── Pattern Analysis — LEARN FROM MISTAKES ───
