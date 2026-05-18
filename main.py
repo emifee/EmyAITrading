@@ -97,10 +97,10 @@ def handle_message(c, msg):
 # ═══════════════════════════════════════════════════════════════
 
 @defer.inlineCallbacks
-def analysis_cycle():
+def analysis_cycle(wakeup_reason=None):
     """Full Claude AI analysis cycle — runs every ANALYSIS_INTERVAL_MINUTES."""
     log.info("═══════════════════════════════════════════════════════")
-    log.info("        🧠 CLAUDE ANALYSIS CYCLE START")
+    log.info(f"        🧠 CLAUDE ANALYSIS CYCLE START{' (' + wakeup_reason + ')' if wakeup_reason else ''}")
     log.info("═══════════════════════════════════════════════════════")
 
     try:
@@ -231,7 +231,8 @@ def analysis_cycle():
             tick_info=tick_info if tick_info["bid"] > 0 else None,
             mtfa_data=mtfa_data,
             market_regime=market_regime,
-            ml_report=ml_report_cache
+            ml_report=ml_report_cache,
+            wakeup_reason=wakeup_reason
         )
 
         log.debug(f"🧠 Sending data to {config.CLAUDE_MODEL}...")
@@ -521,7 +522,7 @@ def tripwire_cycle():
                 send_bot_message(f"⚡ *VOLATILITY TRIPWIRE TRIGGERED*\nMassive 1-minute volume spike ({vol_ratio:.1f}x average) detected. Waking Claude up early!")
                 
             # Fire analysis cycle out of schedule
-            reactor.callLater(0, analysis_cycle)
+            reactor.callLater(0, analysis_cycle, wakeup_reason=f"VOLATILITY TRIPWIRE: Massive 1-minute volume spike ({vol_ratio:.1f}x average) detected. Evaluate the current trend and any open positions for sudden market shifts.")
             
     except Exception as e:
         log.error(f"Tripwire error: {e}")
@@ -701,8 +702,8 @@ def monitor_cycle():
                             if HAS_TELEGRAM_BOT:
                                 send_bot_message("🚨 *GUARD DOG WAKEUP*\nPrice entered Danger Zone (near SL/TP). Forcing Claude to evaluate immediately!")
                             
-                            # Fire off analysis cycle asynchronously
-                            reactor.callLater(0, analysis_cycle)
+                            # Fire off analysis cycle asynchronously with reason
+                            reactor.callLater(0, analysis_cycle, wakeup_reason="DANGER ZONE: Price is within 15% of SL or TP. Check if we should exit early to protect capital.")
 
                 # ─── TIERED PROFIT PROTECTION ─────────────
                 # Wake Claude at 30%, 40%, 50%, 60%, 70%, 80% of TP distance.
@@ -795,8 +796,9 @@ def monitor_cycle():
                                     f"_Claude deciding: HOLD / PARTIAL CLOSE / TAKE PROFIT_"
                                 )
                             
-                            # Force Claude to evaluate immediately
-                            reactor.callLater(0, analysis_cycle)
+                            # Force Claude to evaluate immediately with reason
+                            reason_msg = f"PROFIT PROTECTION TIER HIT: Trade is {pct_display}% of the way to TP. We are in profit. Please evaluate if we should TAKE PROFIT now, PARTIAL CLOSE, or if momentum is strong enough to HOLD for the remaining {100-pct_display}%."
+                            reactor.callLater(0, analysis_cycle, wakeup_reason=reason_msg)
                             
                 # ─── TRAILING STOP LOGIC ─────────────
                 trailing_activation = getattr(config, 'TRAILING_ACTIVATION', 10.0)

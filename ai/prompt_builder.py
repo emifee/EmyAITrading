@@ -351,6 +351,7 @@ XAUUSD MARKET SNAPSHOT — {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:
 Strategy: {strategy_text}
 ═══════════════════════════════════════════════════════
 
+{("🚨 **WAKEUP TRIGGERED:** " + wakeup_reason + "\n" + "Evaluate the position immediately. Check if momentum is stalling at this profit level.\n═══════════════════════════════════════════════════════\n") if wakeup_reason else ""}
 {playbook_rules}
 CURRENT PRICE: ${current_price:,.2f}
 {tick_section}
