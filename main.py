@@ -472,7 +472,6 @@ def is_market_open():
     if now.weekday() == 6 and now.hour < 21: return False
     return True
 
-@defer.inlineCallbacks
 def tripwire_cycle():
     """
     Runs every 60 seconds. Checks 1m volume for massive spikes.
