@@ -812,7 +812,7 @@ def start_telegram_bot():
                 allowed_updates=Update.ALL_TYPES,
                 drop_pending_updates=True,  # Prevents conflict on restart
             )
-            log.info("🤖 Telegram polling active")
+            log.debug("🤖 Telegram polling active")
 
             # Keep running until stopped
             try:

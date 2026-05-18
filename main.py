@@ -138,7 +138,7 @@ def analysis_cycle():
             return
 
         # ─── Step 2: Get candle data ──────────────────────────
-        log.info("📊 Preparing market data for Claude (M15, H1, H4)...")
+        log.debug("📊 Preparing market data for Claude (M15, H1, H4)...")
 
         # Fetch and load for multiple timeframes
         timeframes_to_fetch = [15, 60, 240]
@@ -148,7 +148,7 @@ def analysis_cycle():
         for tf in timeframes_to_fetch:
             df = tick_agg.get_candles(tf)
             if df.empty or len(df) < 20:
-                log.info(f"📊 Insufficient {tf}m candles — fetching from cTrader API...")
+                log.debug(f"📊 Insufficient {tf}m candles — fetching from cTrader API...")
                 # Map minutes to ProtoOATrendbarPeriod if needed, get_trendbars handles this
                 raw_candles = yield get_trendbars(
                     client, config.TRADING_SYMBOL,
@@ -169,7 +169,7 @@ def analysis_cycle():
         candles_1m = tick_agg.get_candles(1)
 
         # ─── Step 3: Calculate indicators ─────────────────────
-        log.info("📐 Calculating technical indicators for all timeframes...")
+        log.debug("📐 Calculating technical indicators for all timeframes...")
         
         # Calculate main 15m
         main_indicators = calculate_all(candles_15m)
@@ -206,7 +206,7 @@ def analysis_cycle():
                     current_price=tick_info["mid"],
                     ema50=h1_ind["ema50"]
                 )
-        log.info(f"🧭 Current Market Regime: {market_regime}")
+        log.debug(f"🧭 Current Market Regime: {market_regime}")
 
         # Fetch open positions for Claude to evaluate
         open_positions = yield get_open_positions(client)
@@ -214,7 +214,7 @@ def analysis_cycle():
         if open_positions:
             log.info(f"📍 {len(open_positions)} open position(s) — Claude will evaluate")
         else:
-            log.info("📍 No open positions — looking for new entries")
+            log.debug("📍 No open positions — looking for new entries")
 
         # ─── Step 5: Check drawdown ───────────────────────────
         if check_drawdown(account["balance"]):
@@ -231,7 +231,7 @@ def analysis_cycle():
             ml_report=ml_report_cache
         )
 
-        log.info(f"🧠 Sending data to {config.CLAUDE_MODEL}...")
+        log.debug(f"🧠 Sending data to {config.CLAUDE_MODEL}...")
         decision = get_trading_decision(prompt)
 
         log.info(f"🧠 Claude Decision: {decision['action']}")

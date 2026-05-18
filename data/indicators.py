@@ -26,7 +26,7 @@ def calculate_all(df: pd.DataFrame) -> dict:
     """
     min_required = 15
     if df.empty or len(df) < min_required:
-        log.warning(f"Insufficient data for indicators (need {min_required} candles, "
+        log.debug(f"Insufficient data for indicators (need {min_required} candles, "
                      f"have {len(df)})")
         return {}
 
@@ -218,7 +218,7 @@ def calculate_all(df: pd.DataFrame) -> dict:
         # Current price
         indicators["current_price"] = round(current_price, 2)
 
-        log.info(
+        log.debug(
             f"Indicators | Trend: {indicators['trend']} | "
             f"EMA50: {indicators['ema50']} | EMA200: {indicators['ema200']} | "
             f"Sweep: {indicators.get('sweep_type', 'None')} | "

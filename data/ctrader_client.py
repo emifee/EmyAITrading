@@ -142,7 +142,7 @@ def get_account_info(client):
         _account_balance = msg.trader.balance / 100.0
         _account_equity = _account_balance  # Will be updated with position P&L
 
-        log.info(f"🏦 Account balance: ${_account_balance:,.2f}")
+        log.debug(f"🏦 Account balance: ${_account_balance:,.2f}")
 
     defer.returnValue({
         "balance": _account_balance,
@@ -309,7 +309,7 @@ def get_trendbars(client, symbol_name, period_minutes=15, count=50):
                 "volume": bar.volume / 100.0 if hasattr(bar, "volume") else 0,
             })
 
-    log.info(f"📊 Fetched {len(candles)} candles for {symbol_name} ({period_minutes}m)")
+    log.debug(f"📊 Fetched {len(candles)} candles for {symbol_name} ({period_minutes}m)")
     defer.returnValue(candles)
 
 

@@ -171,7 +171,7 @@ class TickAggregator:
                     "volume": c.get("volume", 0),
                 })
 
-        log.info(f"📊 Loaded {len(candles_data)} historical {timeframe}m candles")
+        log.debug(f"📊 Loaded {len(candles_data)} historical {timeframe}m candles")
 
     def get_current_price(self) -> dict:
         """Get the latest tick price data."""

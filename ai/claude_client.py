@@ -191,7 +191,7 @@ def get_trading_decision(market_data: str) -> dict:
     try:
         client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
 
-        log.info(f"🧠 Sending market data to {config.CLAUDE_MODEL}...")
+        log.debug(f"🧠 Sending market data to {config.CLAUDE_MODEL}...")
 
         # Build system prompt with optional caching
         if config.ENABLE_PROMPT_CACHING:
