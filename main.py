@@ -56,11 +56,14 @@ _previous_position_ids = set()  # Track positions to detect closes
 _last_wakeup_time = 0.0  # Track when we last forced Claude to wake up
 _profit_tiers_triggered = {}  # Track which profit tiers have been triggered per position
 _loss_tiers_triggered = {}  # Track which loss tiers have been triggered per position
+_auto_lock_tiers_triggered = {}  # Track auto-lock executions
 
 # Profit protection tiers: Claude wakes at each milestone (once per tier)
-_PROFIT_TIERS = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80]
+_PROFIT_TIERS = [0.50, 0.75]
 # Loss protection tiers: Claude wakes to evaluate deep structural invalidation
-_LOSS_TIERS = [0.40, 0.60, 0.80]
+_LOSS_TIERS = [0.50, 0.75]
+# Auto-Lock tiers: Mechanically trail Stop Loss silently
+_AUTO_LOCK_TIERS = [0.40, 0.50, 0.60, 0.70]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -609,13 +612,15 @@ def monitor_cycle():
 
         # Update tracking
         _previous_position_ids = current_ids
-        # Clean up tier tracking for closed positions
         for closed_id in list(_profit_tiers_triggered.keys()):
             if closed_id not in current_ids:
                 del _profit_tiers_triggered[closed_id]
         for closed_id in list(_loss_tiers_triggered.keys()):
             if closed_id not in current_ids:
                 del _loss_tiers_triggered[closed_id]
+        for closed_id in list(_auto_lock_tiers_triggered.keys()):
+            if closed_id not in current_ids:
+                del _auto_lock_tiers_triggered[closed_id]
 
         # ─── WEEKEND GAP PROTECTION ───────────────
         if getattr(config, 'WEEKEND_CLOSE_ENABLED', False) and positions:
@@ -731,20 +736,61 @@ def monitor_cycle():
                     if profit_captured > 0 and total_reward > 0:
                         profit_ratio = profit_captured / total_reward
                         
-                        # Initialize tier tracking for this position
+                        # Get ATR for buffer (default 2.0 if not available)
+                        atr = 2.0
+                        if HAS_TELEGRAM_BOT and hasattr(bot_state, 'last_indicators') and bot_state.last_indicators and 'atr' in bot_state.last_indicators:
+                            atr = bot_state.last_indicators['atr']
+                        atr_buffer = atr * 0.5  # Give half an ATR of breathing room
+                        
+                        # 1. ─── AUTO-LOCK LOGIC ─────────────
+                        if pos_id_key not in _auto_lock_tiers_triggered:
+                            _auto_lock_tiers_triggered[pos_id_key] = set()
+                        triggered_lock = _auto_lock_tiers_triggered[pos_id_key]
+                        
+                        highest_lock_tier = 0
+                        for tier in _AUTO_LOCK_TIERS:
+                            if profit_ratio >= tier and tier not in triggered_lock:
+                                highest_lock_tier = tier
+                                
+                        if highest_lock_tier > 0:
+                            for t in _AUTO_LOCK_TIERS:
+                                if t <= highest_lock_tier:
+                                    triggered_lock.add(t)
+                            
+                            # Lock in profit with ATR buffer
+                            lock_ratio = highest_lock_tier - 0.20
+                            locked_dist = lock_ratio * total_reward
+                            new_sl = sl
+                            
+                            if side == "BUY":
+                                potential_sl = entry + locked_dist - atr_buffer
+                                if sl == 0 or potential_sl > sl:
+                                    new_sl = potential_sl
+                            elif side == "SELL":
+                                potential_sl = entry - locked_dist + atr_buffer
+                                if sl == 0 or potential_sl < sl:
+                                    new_sl = potential_sl
+                                    
+                            if new_sl != sl:
+                                locked_pct = int(lock_ratio * 100)
+                                log.info(f"🔒 TIER LOCK: Moving SL to ${new_sl:,.2f} (Buffered) to guarantee {locked_pct}% profit on position {pos['positionId']}")
+                                from data.ctrader_client import amend_position_sltp
+                                yield amend_position_sltp(client, pos["positionId"], new_sl, tp)
+                                sl = new_sl  # Update local var
+                                if HAS_TELEGRAM_BOT:
+                                    send_bot_message(f"🔒 *Auto-Lock:* SL moved to `${new_sl:,.2f}` (Guarantees {locked_pct}% profit with ATR buffer)")
+
+                        # 2. ─── CLAUDE WAKEUP LOGIC ─────────────
                         if pos_id_key not in _profit_tiers_triggered:
                             _profit_tiers_triggered[pos_id_key] = set()
-                        
                         triggered = _profit_tiers_triggered[pos_id_key]
                         
-                        # Find the highest tier we've reached that hasn't been triggered yet
                         highest_tier_triggered = 0
                         for tier in _PROFIT_TIERS:
                             if profit_ratio >= tier and tier not in triggered:
                                 highest_tier_triggered = tier
                                 
                         if highest_tier_triggered > 0:
-                            # Add this tier and all skipped lower tiers to the triggered set
                             for t in _PROFIT_TIERS:
                                 if t <= highest_tier_triggered:
                                     triggered.add(t)
@@ -752,42 +798,8 @@ def monitor_cycle():
                             pct_display = int(highest_tier_triggered * 100)
                             profit_dollars = round(profit_captured * pos.get('volume', 0), 2)
                             
-                            # ─── TIER LOCK: Mechanically guarantee profit ─────────────
-                            # If we hit 40% TP, lock in 20%. If 60%, lock in 40%, etc.
-                            # This prevents the trade from falling back to Breakeven if Claude says "HOLD".
-                            locked_msg = ""
-                            if highest_tier_triggered >= 0.40:
-                                lock_ratio = highest_tier_triggered - 0.20
-                                locked_dist = lock_ratio * total_reward
-                                new_sl = sl
-                                
-                                if side == "BUY":
-                                    potential_sl = entry + locked_dist
-                                    if sl == 0 or potential_sl > sl:
-                                        new_sl = potential_sl
-                                elif side == "SELL":
-                                    potential_sl = entry - locked_dist
-                                    if sl == 0 or potential_sl < sl:
-                                        new_sl = potential_sl
-                                        
-                                if new_sl != sl:
-                                    locked_pct = int(lock_ratio * 100)
-                                    log.info(f"🔒 TIER LOCK: Moving SL to ${new_sl:,.2f} to guarantee {locked_pct}% profit on position {pos['positionId']}")
-                                    from data.ctrader_client import amend_position_sltp
-                                    yield amend_position_sltp(client, pos["positionId"], new_sl, tp)
-                                    sl = new_sl  # Update local var for trailing stop logic below
-                                    locked_msg = f"\n🔒 *Auto-Lock:* SL moved to `${new_sl:,.2f}` (Guarantees {locked_pct}% profit)"
-                            
-                            # Tier-specific messaging
-                            if pct_display <= 40:
-                                urgency = "📊"
-                                msg_tone = "Early profit detected"
-                            elif pct_display <= 60:
-                                urgency = "💰"
-                                msg_tone = "Significant profit — evaluate exit"
-                            else:
-                                urgency = "🔥"
-                                msg_tone = "STRONG PROFIT — protect gains!"
+                            urgency = "💰" if pct_display < 70 else "🔥"
+                            msg_tone = "Significant profit — evaluate exit" if pct_display < 70 else "STRONG PROFIT — protect gains!"
                             
                             log.info(f"{urgency} PROFIT TIER {pct_display}%: ~${profit_dollars:,.2f} profit — Waking Claude!")
                             
@@ -798,12 +810,11 @@ def monitor_cycle():
                                     f"{msg_tone}\n"
                                     f"📈 Profit: ~`${profit_dollars:,.2f}`\n"
                                     f"📍 Price: `${current_price:,.2f}`\n"
-                                    f"🎯 TP: `${tp:,.2f}` ({int(profit_ratio*100)}% reached){locked_msg}\n"
+                                    f"🎯 TP: `${tp:,.2f}` ({int(profit_ratio*100)}% reached)\n"
                                     f"━━━━━━━━━━━━━━━━━━\n"
                                     f"_Claude deciding: HOLD / PARTIAL CLOSE / TAKE PROFIT_"
                                 )
                             
-                            # Force Claude to evaluate immediately with reason
                             reason_msg = f"PROFIT PROTECTION TIER HIT: Trade is {pct_display}% of the way to TP. We are in profit. Please evaluate if we should TAKE PROFIT now, PARTIAL CLOSE, or if momentum is strong enough to HOLD for the remaining {100-pct_display}%."
                             reactor.callLater(0, analysis_cycle, wakeup_reason=reason_msg)
                             
