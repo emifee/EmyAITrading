@@ -10,10 +10,15 @@ import sys
 from loguru import logger
 
 import config
+import logging
 
 
 def setup_logger():
     """Configure loguru with console and file sinks."""
+    # Suppress messy third-party HTTP logs
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("telegram").setLevel(logging.WARNING)
 
     # Remove default handler
     logger.remove()
