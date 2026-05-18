@@ -55,8 +55,12 @@ _monitor_loop = None
 _previous_position_ids = set()  # Track positions to detect closes
 _last_wakeup_time = 0.0  # Track when we last forced Claude to wake up
 _profit_tiers_triggered = {}  # Track which profit tiers have been triggered per position
+_loss_tiers_triggered = {}  # Track which loss tiers have been triggered per position
+
 # Profit protection tiers: Claude wakes at each milestone (once per tier)
 _PROFIT_TIERS = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80]
+# Loss protection tiers: Claude wakes to evaluate deep structural invalidation
+_LOSS_TIERS = [0.40, 0.60, 0.80]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -609,6 +613,9 @@ def monitor_cycle():
         for closed_id in list(_profit_tiers_triggered.keys()):
             if closed_id not in current_ids:
                 del _profit_tiers_triggered[closed_id]
+        for closed_id in list(_loss_tiers_triggered.keys()):
+            if closed_id not in current_ids:
+                del _loss_tiers_triggered[closed_id]
 
         # ─── WEEKEND GAP PROTECTION ───────────────
         if getattr(config, 'WEEKEND_CLOSE_ENABLED', False) and positions:
@@ -799,6 +806,55 @@ def monitor_cycle():
                             # Force Claude to evaluate immediately with reason
                             reason_msg = f"PROFIT PROTECTION TIER HIT: Trade is {pct_display}% of the way to TP. We are in profit. Please evaluate if we should TAKE PROFIT now, PARTIAL CLOSE, or if momentum is strong enough to HOLD for the remaining {100-pct_display}%."
                             reactor.callLater(0, analysis_cycle, wakeup_reason=reason_msg)
+                            
+                    # ─── TIERED LOSS PROTECTION ─────────────
+                    # Wake Claude at 40%, 60%, 80% of SL distance (drawdown)
+                    elif profit_captured < 0 and sl > 0:
+                        orig_risk = abs(entry - sl)
+                        if orig_risk > 0:
+                            drawdown_ratio = abs(profit_captured) / orig_risk
+                            
+                            # Initialize tier tracking for this position
+                            if pos_id_key not in _loss_tiers_triggered:
+                                _loss_tiers_triggered[pos_id_key] = set()
+                            
+                            triggered_loss = _loss_tiers_triggered[pos_id_key]
+                            
+                            # Find the highest tier we've reached
+                            highest_loss_tier = 0
+                            for tier in _LOSS_TIERS:
+                                if drawdown_ratio >= tier and tier not in triggered_loss:
+                                    highest_loss_tier = tier
+                                    
+                            if highest_loss_tier > 0:
+                                # Add this tier and lower tiers
+                                for t in _LOSS_TIERS:
+                                    if t <= highest_loss_tier:
+                                        triggered_loss.add(t)
+                                        
+                                pct_display = int(highest_loss_tier * 100)
+                                loss_dollars = round(abs(profit_captured) * pos.get('volume', 0), 2)
+                                
+                                urgency = "⚠️" if pct_display < 80 else "🚨"
+                                msg_tone = "Trade is in drawdown. Evaluate structural integrity." if pct_display < 80 else "CRITICAL DRAWDOWN. Evaluate if setup is completely invalidated."
+                                
+                                log.warning(f"{urgency} LOSS TIER {pct_display}%: ~${loss_dollars:,.2f} drawdown — Waking Claude for deep analysis!")
+                                
+                                if HAS_TELEGRAM_BOT:
+                                    send_bot_message(
+                                        f"{urgency} *LOSS PROTECTION — {pct_display}% TIER*\n"
+                                        f"━━━━━━━━━━━━━━━━━━\n"
+                                        f"{msg_tone}\n"
+                                        f"📉 Drawdown: ~`-${loss_dollars:,.2f}`\n"
+                                        f"📍 Price: `${current_price:,.2f}`\n"
+                                        f"🛡️ SL: `${sl:,.2f}` ({int(drawdown_ratio*100)}% to stop out)\n"
+                                        f"━━━━━━━━━━━━━━━━━━\n"
+                                        f"_Claude deciding: HOLD (if valid) / CLOSE_TRADE (if invalid)_"
+                                    )
+                                
+                                # Force Claude to evaluate immediately with reason
+                                reason_msg = f"LOSS PROTECTION TIER HIT: Trade is {pct_display}% of the way to Stop Loss. We are in drawdown. Perform deep structural analysis. If the setup is completely invalidated (e.g. key levels broken, momentum shifted), recommend CLOSE_TRADE now to save capital. If the setup is still structurally valid and this is just a normal pullback, recommend HOLD."
+                                reactor.callLater(0, analysis_cycle, wakeup_reason=reason_msg)
                             
                 # ─── TRAILING STOP LOGIC ─────────────
                 trailing_activation = getattr(config, 'TRAILING_ACTIVATION', 10.0)
