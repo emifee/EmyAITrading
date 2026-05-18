@@ -731,7 +731,13 @@ def monitor_cycle():
             bot_state.last_indicators = tick_info
 
     except Exception as e:
-        log.error(f"Monitor cycle error: {e}")
+        # (5, 'Deferred') is a harmless Twisted timing conflict when monitor
+        # and analysis cycles overlap — silently skip, it resolves next cycle
+        err_str = str(e)
+        if "Deferred" in err_str:
+            log.debug(f"Monitor skipped (busy): {err_str}")
+        else:
+            log.error(f"Monitor cycle error: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════
