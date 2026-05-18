@@ -730,40 +730,73 @@ def monitor_cycle():
                         triggered = _profit_tiers_triggered[pos_id_key]
                         
                         # Find the highest tier we've reached that hasn't been triggered yet
+                        highest_tier_triggered = 0
                         for tier in _PROFIT_TIERS:
                             if profit_ratio >= tier and tier not in triggered:
-                                triggered.add(tier)
-                                pct_display = int(tier * 100)
-                                profit_dollars = round(profit_captured * pos.get('volume', 0), 2)
+                                highest_tier_triggered = tier
                                 
-                                # Tier-specific messaging
-                                if pct_display <= 40:
-                                    urgency = "📊"
-                                    msg_tone = "Early profit detected"
-                                elif pct_display <= 60:
-                                    urgency = "💰"
-                                    msg_tone = "Significant profit — evaluate exit"
-                                else:
-                                    urgency = "🔥"
-                                    msg_tone = "STRONG PROFIT — protect gains!"
+                        if highest_tier_triggered > 0:
+                            # Add this tier and all skipped lower tiers to the triggered set
+                            for t in _PROFIT_TIERS:
+                                if t <= highest_tier_triggered:
+                                    triggered.add(t)
+                                    
+                            pct_display = int(highest_tier_triggered * 100)
+                            profit_dollars = round(profit_captured * pos.get('volume', 0), 2)
+                            
+                            # ─── TIER LOCK: Mechanically guarantee profit ─────────────
+                            # If we hit 40% TP, lock in 20%. If 60%, lock in 40%, etc.
+                            # This prevents the trade from falling back to Breakeven if Claude says "HOLD".
+                            locked_msg = ""
+                            if highest_tier_triggered >= 0.40:
+                                lock_ratio = highest_tier_triggered - 0.20
+                                locked_dist = lock_ratio * total_reward
+                                new_sl = sl
                                 
-                                log.info(f"{urgency} PROFIT TIER {pct_display}%: ~${profit_dollars:,.2f} profit — Waking Claude!")
-                                
-                                if HAS_TELEGRAM_BOT:
-                                    send_bot_message(
-                                        f"{urgency} *PROFIT PROTECTION — {pct_display}% TIER*\n"
-                                        f"━━━━━━━━━━━━━━━━━━\n"
-                                        f"{msg_tone}\n"
-                                        f"📈 Profit: ~`${profit_dollars:,.2f}`\n"
-                                        f"📍 Price: `${current_price:,.2f}`\n"
-                                        f"🎯 TP: `${tp:,.2f}` ({int(profit_ratio*100)}% reached)\n"
-                                        f"━━━━━━━━━━━━━━━━━━\n"
-                                        f"_Claude deciding: HOLD / PARTIAL CLOSE / TAKE PROFIT_"
-                                    )
-                                
-                                # Force Claude to evaluate immediately
-                                reactor.callLater(0, analysis_cycle)
-                                break  # Only trigger one tier per cycle
+                                if side == "BUY":
+                                    potential_sl = entry + locked_dist
+                                    if sl == 0 or potential_sl > sl:
+                                        new_sl = potential_sl
+                                elif side == "SELL":
+                                    potential_sl = entry - locked_dist
+                                    if sl == 0 or potential_sl < sl:
+                                        new_sl = potential_sl
+                                        
+                                if new_sl != sl:
+                                    locked_pct = int(lock_ratio * 100)
+                                    log.info(f"🔒 TIER LOCK: Moving SL to ${new_sl:,.2f} to guarantee {locked_pct}% profit on position {pos['positionId']}")
+                                    from data.ctrader_client import amend_position_sltp
+                                    yield amend_position_sltp(client, pos["positionId"], new_sl, tp)
+                                    sl = new_sl  # Update local var for trailing stop logic below
+                                    locked_msg = f"\n🔒 *Auto-Lock:* SL moved to `${new_sl:,.2f}` (Guarantees {locked_pct}% profit)"
+                            
+                            # Tier-specific messaging
+                            if pct_display <= 40:
+                                urgency = "📊"
+                                msg_tone = "Early profit detected"
+                            elif pct_display <= 60:
+                                urgency = "💰"
+                                msg_tone = "Significant profit — evaluate exit"
+                            else:
+                                urgency = "🔥"
+                                msg_tone = "STRONG PROFIT — protect gains!"
+                            
+                            log.info(f"{urgency} PROFIT TIER {pct_display}%: ~${profit_dollars:,.2f} profit — Waking Claude!")
+                            
+                            if HAS_TELEGRAM_BOT:
+                                send_bot_message(
+                                    f"{urgency} *PROFIT PROTECTION — {pct_display}% TIER*\n"
+                                    f"━━━━━━━━━━━━━━━━━━\n"
+                                    f"{msg_tone}\n"
+                                    f"📈 Profit: ~`${profit_dollars:,.2f}`\n"
+                                    f"📍 Price: `${current_price:,.2f}`\n"
+                                    f"🎯 TP: `${tp:,.2f}` ({int(profit_ratio*100)}% reached){locked_msg}\n"
+                                    f"━━━━━━━━━━━━━━━━━━\n"
+                                    f"_Claude deciding: HOLD / PARTIAL CLOSE / TAKE PROFIT_"
+                                )
+                            
+                            # Force Claude to evaluate immediately
+                            reactor.callLater(0, analysis_cycle)
                             
                 # ─── TRAILING STOP LOGIC ─────────────
                 trailing_activation = getattr(config, 'TRAILING_ACTIVATION', 10.0)
