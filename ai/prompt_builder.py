@@ -283,9 +283,17 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
         # ─── Multi-Timeframe Analysis (MTFA) ──────────────────
         mtfa_section = ""
         if mtfa_data:
-            mtfa_section = "─── HIGHER TIMEFRAMES (MTFA) ───────────────────────\n"
-            for tf, ind in mtfa_data.items():
-                label = "H1 (60m)" if tf == 60 else "H4 (240m)"
+            mtfa_section = "─── MULTI-TIMEFRAME ANALYSIS (MTFA) ────────────────\n"
+            # Sort timeframes so they appear in order (5, 60, 240)
+            for tf in sorted(mtfa_data.keys()):
+                ind = mtfa_data[tf]
+                if tf == 5:
+                    label = "M5 (Early Momentum)"
+                elif tf == 60:
+                    label = "H1 (Trend)"
+                else:
+                    label = "H4 (Macro)"
+                    
                 mtfa_section += (
                     f"{label}:\n"
                     f"  Price: ${_safe(ind.get('latest_close')):,.2f} | "

@@ -150,8 +150,8 @@ def analysis_cycle(wakeup_reason=None):
         # ─── Step 2: Get candle data ──────────────────────────
         log.debug("📊 Preparing market data for Claude (M15, H1, H4)...")
 
-        # Fetch and load for multiple timeframes
-        timeframes_to_fetch = [15, 60, 240]
+        # Fetch and load for multiple timeframes (M5 for early movement)
+        timeframes_to_fetch = [5, 15, 60, 240]
         candles = {}
         indicators = {}
         
@@ -189,7 +189,7 @@ def analysis_cycle(wakeup_reason=None):
             
         # Calculate MTFA
         mtfa_data = {}
-        for tf in [60, 240]:
+        for tf in [5, 60, 240]:
             if not candles[tf].empty:
                 mtfa_ind = calculate_all(candles[tf])
                 if mtfa_ind:
