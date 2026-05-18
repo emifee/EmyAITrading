@@ -208,6 +208,7 @@ def get_trading_decision(market_data: str) -> dict:
             max_tokens=2500,
             system=system_content,
             messages=[{"role": "user", "content": market_data}],
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"}
         )
 
         raw = response.content[0].text.strip()
