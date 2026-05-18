@@ -666,7 +666,7 @@ def monitor_cycle():
                 if getattr(config, 'DANGER_ZONE_PCT', 0) > 0 and entry > 0:
                     danger_pct = config.DANGER_ZONE_PCT
                     now = time.time()
-                    cooldown = getattr(config, 'WAKEUP_COOLDOWN_MINUTES', 30) * 60
+                    cooldown = getattr(config, 'WAKEUP_COOLDOWN_MINUTES', 15) * 60
                     
                     if (now - _last_wakeup_time) > cooldown:
                         trigger_wakeup = False
@@ -696,6 +696,51 @@ def monitor_cycle():
                             
                             # Fire off analysis cycle asynchronously
                             reactor.callLater(0, analysis_cycle)
+
+                # ─── PROFIT PROTECTION WAKEUP (Half-TP) ─────────────
+                # When a trade reaches 50%+ of the way to TP, wake Claude
+                # to decide: hold for TP, partial close, or take profit now.
+                # This prevents trades from bouncing back to breakeven.
+                profit_protect_pct = getattr(config, 'PROFIT_PROTECT_PCT', 0.50)
+                profit_cooldown = getattr(config, 'PROFIT_PROTECT_COOLDOWN', 10) * 60
+                
+                if entry > 0 and tp > 0 and profit_protect_pct > 0:
+                    total_reward = abs(tp - entry)
+                    
+                    # Calculate how much profit we've captured
+                    if side == "BUY":
+                        profit_captured = current_price - entry
+                    else:
+                        profit_captured = entry - current_price
+                    
+                    # Only trigger when in profit (not when losing)
+                    if profit_captured > 0 and total_reward > 0:
+                        profit_ratio = profit_captured / total_reward
+                        
+                        if profit_ratio >= profit_protect_pct:
+                            now = time.time()
+                            last_pp = getattr(monitor_cycle, '_last_profit_protect', 0)
+                            
+                            if (now - last_pp) > profit_cooldown:
+                                monitor_cycle._last_profit_protect = now
+                                pct_display = round(profit_ratio * 100)
+                                profit_dollars = round(profit_captured * pos.get('volume', 0), 2)
+                                
+                                log.info(f"💰 PROFIT PROTECTION: Trade is {pct_display}% to TP (${profit_captured:,.2f} move, ~${profit_dollars:,.2f} profit) — Waking Claude!")
+                                
+                                if HAS_TELEGRAM_BOT:
+                                    send_bot_message(
+                                        f"💰 *PROFIT PROTECTION WAKEUP*\n"
+                                        f"━━━━━━━━━━━━━━━━━━\n"
+                                        f"Trade is **{pct_display}%** of the way to TP!\n"
+                                        f"📈 Profit so far: ~`${profit_dollars:,.2f}`\n"
+                                        f"🎯 TP target: `${tp:,.2f}`\n"
+                                        f"━━━━━━━━━━━━━━━━━━\n"
+                                        f"_Waking Claude to decide: HOLD or TAKE PROFIT_"
+                                    )
+                                
+                                # Force Claude to evaluate immediately
+                                reactor.callLater(0, analysis_cycle)
                             
                 # ─── TRAILING STOP LOGIC ─────────────
                 trailing_activation = getattr(config, 'TRAILING_ACTIVATION', 10.0)

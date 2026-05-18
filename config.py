@@ -58,7 +58,9 @@ BREAKEVEN_BUFFER = float(os.getenv("BREAKEVEN_BUFFER", "1.00"))  # Buffer in pri
 
 # ─── Event-Driven Wakeup & Automation ────────────────────────
 DANGER_ZONE_PCT = float(os.getenv("DANGER_ZONE_PCT", "0.15"))  # Wake Claude if price is within 15% of SL/TP
-WAKEUP_COOLDOWN_MINUTES = int(os.getenv("WAKEUP_COOLDOWN_MINUTES", "30"))  # Don't wake Claude repeatedly
+WAKEUP_COOLDOWN_MINUTES = int(os.getenv("WAKEUP_COOLDOWN_MINUTES", "15"))  # Don't wake Claude repeatedly
+PROFIT_PROTECT_PCT = float(os.getenv("PROFIT_PROTECT_PCT", "0.50"))  # Wake Claude when trade reaches 50% of TP distance
+PROFIT_PROTECT_COOLDOWN = int(os.getenv("PROFIT_PROTECT_COOLDOWN", "10"))  # Minutes between profit protection wakeups
 TRAILING_ACTIVATION = float(os.getenv("TRAILING_ACTIVATION", "10.0"))  # Price must move $10.00 in profit to activate
 TRAILING_STOP_DISTANCE = float(os.getenv("TRAILING_STOP_DISTANCE", "5.0"))  # Trail the Stop Loss $5.00 behind the current price
 WEEKEND_CLOSE_ENABLED = os.getenv("WEEKEND_CLOSE_ENABLED", "true").lower() == "true"  # Close all trades on Friday at 20:00 UTC
