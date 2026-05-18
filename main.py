@@ -339,8 +339,21 @@ def analysis_cycle(wakeup_reason=None):
                 from data.ctrader_client import amend_position_sltp
                 for pos in positions:
                     entry = pos["entryPrice"]
+                    existing_sl = float(pos.get("stopLoss", 0))
                     buffer = getattr(config, 'BREAKEVEN_BUFFER', 0.50)
-                    new_sl = entry + buffer if pos['side'] == 'BUY' else entry - buffer
+                    
+                    if pos['side'] == 'BUY':
+                        new_sl = entry + buffer
+                        # Prevent moving a deeply profitable SL backwards to breakeven
+                        if existing_sl > 0 and existing_sl >= new_sl:
+                            log.info(f"⏭️ Skipping MOVE_SL_BE: Current SL (${existing_sl:,.2f}) is already better than breakeven (${new_sl:,.2f})")
+                            continue
+                    else:
+                        new_sl = entry - buffer
+                        # Prevent moving a deeply profitable SL backwards to breakeven
+                        if existing_sl > 0 and existing_sl <= new_sl:
+                            log.info(f"⏭️ Skipping MOVE_SL_BE: Current SL (${existing_sl:,.2f}) is already better than breakeven (${new_sl:,.2f})")
+                            continue
                     
                     existing_tp = pos.get("takeProfit", 0) or decision.get("take_profit", 0)
                     log.info(f"🛡️ Moving SL to breakeven (${new_sl:,.2f}) for position {pos['positionId']} — keeping TP ${existing_tp}")
