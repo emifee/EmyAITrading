@@ -16,9 +16,12 @@ import logging
 def setup_logger():
     """Configure loguru with console and file sinks."""
     # Suppress messy third-party HTTP logs
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("telegram").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.CRITICAL)
+    logging.getLogger("httpcore").setLevel(logging.CRITICAL)
+    logging.getLogger("telegram").setLevel(logging.CRITICAL)
+    logging.getLogger("telegram.ext").setLevel(logging.CRITICAL)
+    logging.getLogger("telegram.ext._updater").setLevel(logging.CRITICAL)
+    logging.getLogger("telegram.ext._utils.networkloop").setLevel(logging.CRITICAL)
 
     # Remove default handler
     logger.remove()
