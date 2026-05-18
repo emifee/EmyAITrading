@@ -346,12 +346,20 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
             f"Volume Delta:   {_safe(indicators.get('volume_delta'), 'N/A')}\n"
         )
 
+        wakeup_str = ""
+        if wakeup_reason:
+            wakeup_str = (
+                f"🚨 **WAKEUP TRIGGERED:** {wakeup_reason}\n"
+                f"Evaluate the position immediately. Check if momentum is stalling at this profit level.\n"
+                f"═══════════════════════════════════════════════════════\n"
+            )
+
         prompt = f"""
 XAUUSD MARKET SNAPSHOT — {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}
 Strategy: {strategy_text}
 ═══════════════════════════════════════════════════════
 
-{("🚨 **WAKEUP TRIGGERED:** " + wakeup_reason + "\n" + "Evaluate the position immediately. Check if momentum is stalling at this profit level.\n═══════════════════════════════════════════════════════\n") if wakeup_reason else ""}
+{wakeup_str}
 {playbook_rules}
 CURRENT PRICE: ${current_price:,.2f}
 {tick_section}
