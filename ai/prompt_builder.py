@@ -51,7 +51,7 @@ def format_for_claude(candles_15m: pd.DataFrame, indicators: dict,
                        account: dict, candles_1m: pd.DataFrame = None,
                        tick_info: dict = None, mtfa_data: dict = None,
                        market_regime: str = "UNKNOWN", ml_report: str = "",
-                       wakeup_reason: str = None) -> str:
+                       wakeup_reason: str = None, streak_count: int = 0, daily_pnl: float = 0.0) -> str:
     """
     Build comprehensive market data prompt for Trend + Liquidity Sweep strategy.
 
@@ -125,6 +125,7 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
 
         # Open positions — detailed for position management
         positions_str = "None — no open positions"
+        # Check if there are open positions to determine AI Mode (Hunter vs Manager)
         has_position = False
         if account.get("positions"):
             has_position = True
@@ -298,14 +299,55 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
             mtfa_section += "\n⚡ MTFA RULE: Do NOT trade against the H1/H4 trend unless it's a confirmed massive sweep reversal.\n"
 
         strategy_text = "Trend + Liquidity Sweep"
-        playbook_rules = ""
         
-        strategy_text = f"Contextual Analysis ({market_regime})"
-        playbook_rules = (
-            f"🎯 REGIME CONTEXT: {market_regime}\n"
-            "• Use all available indicators to assess the trend and mean reversion potential.\n"
-            "• Market regimes are calculated using ADX, but ADX can lag. Trust price action and EMAs first.\n"
-        )
+        # ─── Split AI Logic: Hunter vs Manager ────────────────
+        if has_position:
+            playbook_rules = (
+                f"🎯 REGIME CONTEXT: {market_regime}\n"
+                "• MANAGER MODE ACTIVE: You have an open position.\n"
+                "• IGNORE new entry signals. Your ONLY job is to evaluate the existing trade.\n"
+                "• Check for invalidation signals (e.g. price closed beyond key EMA, momentum shifted).\n"
+                "• If structure is broken, output CLOSE_TRADE.\n"
+                "• If structure is valid, output HOLD or PARTIAL_CLOSE.\n"
+            )
+        else:
+            playbook_rules = (
+                f"🎯 REGIME CONTEXT: {market_regime}\n"
+                "• HUNTER MODE ACTIVE: No open positions.\n"
+                "• Look for liquidity sweeps, trend continuations, and high-probability entries.\n"
+                "• If you find a setup, output BUY or SELL with precise Stop Loss and Take Profit.\n"
+                "• If no clear setup exists, output HOLD.\n"
+            )
+
+        # ─── Volatility & Risk Warnings ────────────────────────
+        now_utc = datetime.now(timezone.utc)
+        volatility_warning = ""
+        
+        # Calculate time to NY Open (13:00 UTC)
+        ny_open = now_utc.replace(hour=13, minute=0, second=0, microsecond=0)
+        if now_utc.hour >= 13:
+            ny_open += timedelta(days=1)
+            
+        # Calculate time to London Open (8:00 UTC)
+        london_open = now_utc.replace(hour=8, minute=0, second=0, microsecond=0)
+        if now_utc.hour >= 8:
+            london_open += timedelta(days=1)
+            
+        mins_to_ny = (ny_open - now_utc).total_seconds() / 60
+        mins_to_london = (london_open - now_utc).total_seconds() / 60
+        
+        if 0 < mins_to_ny <= 60:
+            volatility_warning = f"⚠️ VOLATILITY WARNING: New York session opens in {int(mins_to_ny)} minutes. Expect aggressive volume spikes and wicks. Tighten stops if in profit.\n"
+        elif 0 < mins_to_london <= 60:
+            volatility_warning = f"⚠️ VOLATILITY WARNING: London session opens in {int(mins_to_london)} minutes. Expect aggressive volume spikes and wicks. Tighten stops if in profit.\n"
+
+        risk_warning = ""
+        if streak_count >= 2 or daily_pnl < 0:
+            risk_warning = (
+                f"🚨 RISK ALERT: You are on a {streak_count}-trade losing streak today. "
+                f"Daily P&L: ${daily_pnl:,.2f}.\n"
+                f"ADOPT MAXIMUM DEFENSIVE POSTURE. Reject all sub-optimal setups and prioritize capital preservation.\n"
+            )
 
         # ─── Display All Indicators ─────────────────────────
         # We previously stripped indicators based on regime, but ADX lag 
@@ -360,7 +402,7 @@ XAUUSD MARKET SNAPSHOT — {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:
 Strategy: {strategy_text}
 ═══════════════════════════════════════════════════════
 
-{wakeup_str}
+{wakeup_str}{volatility_warning}{risk_warning}
 {playbook_rules}
 CURRENT PRICE: ${current_price:,.2f}
 {tick_section}
@@ -387,7 +429,6 @@ Open Positions:
 Max Risk Per Trade: {config.MAX_RISK_PER_TRADE}%
 
 {journal_section}
-{"─── ⚠️ POSITION MANAGEMENT MODE ─────────────────────" + chr(10) + "You have an OPEN POSITION. Your PRIMARY task is to evaluate it:" + chr(10) + "1. Check for REVERSAL signals (sweep against position, EMA cross, BOS)" + chr(10) + "2. If 1:1 R achieved → consider MOVE_SL_BE" + chr(10) + "3. If TP1 reached → consider PARTIAL_CLOSE" + chr(10) + "4. If invalidation detected → recommend CLOSE_TRADE" + chr(10) + "5. If conditions still valid → HOLD the position" if has_position else "INSTRUCTION: FIND A TRADE." + chr(10) + "Look at the candle data and price action. Identify direction from:" + chr(10) + "- Price above/below EMAs = bias direction" + chr(10) + "- Recent candle structure (HH/HL = long, LH/LL = short)" + chr(10) + "- Strong momentum candles in one direction" + chr(10) + "- Rejection wicks at key levels" + chr(10) + "If you can see ANY directional bias with a logical SL/TP placement → output BUY or SELL." + chr(10) + "HOLD is only acceptable if price is completely flat with zero momentum in any direction." + chr(10) + "Do NOT hold just because EMAs are close together — use price action instead."}
 """
 
         log.debug(f"Prompt built: {len(prompt)} characters")

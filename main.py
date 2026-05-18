@@ -232,6 +232,16 @@ def analysis_cycle(wakeup_reason=None):
             return
 
         # ─── Step 6: Format prompt & call Claude ──────────────
+        # Get Streak and Daily PNL for AI Context
+        from trading.risk_manager import risk_state
+        from data.trade_journal import get_stats
+        
+        try:
+            stats = get_stats()
+            today_pnl = stats.get("today_pnl", 0.0)
+        except Exception:
+            today_pnl = 0.0
+
         prompt = format_for_claude(
             candles_15m, main_indicators, account,
             candles_1m=candles_1m if not candles_1m.empty else None,
@@ -239,7 +249,9 @@ def analysis_cycle(wakeup_reason=None):
             mtfa_data=mtfa_data,
             market_regime=market_regime,
             ml_report=ml_report_cache,
-            wakeup_reason=wakeup_reason
+            wakeup_reason=wakeup_reason,
+            streak_count=risk_state.streak_count,
+            daily_pnl=today_pnl
         )
 
         log.debug(f"🧠 Sending data to {config.CLAUDE_MODEL}...")
