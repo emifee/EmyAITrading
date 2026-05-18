@@ -54,6 +54,9 @@ _analysis_loop = None
 _monitor_loop = None
 _previous_position_ids = set()  # Track positions to detect closes
 _last_wakeup_time = 0.0  # Track when we last forced Claude to wake up
+_profit_tiers_triggered = {}  # Track which profit tiers have been triggered per position
+# Profit protection tiers: Claude wakes at each milestone (once per tier)
+_PROFIT_TIERS = [0.30, 0.40, 0.50, 0.60, 0.70, 0.80]
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -532,7 +535,7 @@ def tripwire_cycle():
 @defer.inlineCallbacks
 def monitor_cycle():
     """Local monitoring cycle — checks positions, detects closes, no Claude call."""
-    global _previous_position_ids, _last_wakeup_time
+    global _previous_position_ids, _last_wakeup_time, _profit_tiers_triggered
 
     try:
         tick_info = tick_agg.get_current_price()
@@ -601,6 +604,10 @@ def monitor_cycle():
 
         # Update tracking
         _previous_position_ids = current_ids
+        # Clean up tier tracking for closed positions
+        for closed_id in list(_profit_tiers_triggered.keys()):
+            if closed_id not in current_ids:
+                del _profit_tiers_triggered[closed_id]
 
         # ─── WEEKEND GAP PROTECTION ───────────────
         if getattr(config, 'WEEKEND_CLOSE_ENABLED', False) and positions:
@@ -697,14 +704,13 @@ def monitor_cycle():
                             # Fire off analysis cycle asynchronously
                             reactor.callLater(0, analysis_cycle)
 
-                # ─── PROFIT PROTECTION WAKEUP (Half-TP) ─────────────
-                # When a trade reaches 50%+ of the way to TP, wake Claude
-                # to decide: hold for TP, partial close, or take profit now.
-                # This prevents trades from bouncing back to breakeven.
-                profit_protect_pct = getattr(config, 'PROFIT_PROTECT_PCT', 0.50)
-                profit_cooldown = getattr(config, 'PROFIT_PROTECT_COOLDOWN', 10) * 60
+                # ─── TIERED PROFIT PROTECTION ─────────────
+                # Wake Claude at 30%, 40%, 50%, 60%, 70%, 80% of TP distance.
+                # Each tier triggers ONCE per position. Under 20% = wait for BE.
+                # Above 80% = let TP hit naturally.
+                pos_id_key = pos.get('positionId', 0)
                 
-                if entry > 0 and tp > 0 and profit_protect_pct > 0:
+                if entry > 0 and tp > 0:
                     total_reward = abs(tp - entry)
                     
                     # Calculate how much profit we've captured
@@ -713,34 +719,51 @@ def monitor_cycle():
                     else:
                         profit_captured = entry - current_price
                     
-                    # Only trigger when in profit (not when losing)
+                    # Only trigger when in profit
                     if profit_captured > 0 and total_reward > 0:
                         profit_ratio = profit_captured / total_reward
                         
-                        if profit_ratio >= profit_protect_pct:
-                            now = time.time()
-                            last_pp = getattr(monitor_cycle, '_last_profit_protect', 0)
-                            
-                            if (now - last_pp) > profit_cooldown:
-                                monitor_cycle._last_profit_protect = now
-                                pct_display = round(profit_ratio * 100)
+                        # Initialize tier tracking for this position
+                        if pos_id_key not in _profit_tiers_triggered:
+                            _profit_tiers_triggered[pos_id_key] = set()
+                        
+                        triggered = _profit_tiers_triggered[pos_id_key]
+                        
+                        # Find the highest tier we've reached that hasn't been triggered yet
+                        for tier in _PROFIT_TIERS:
+                            if profit_ratio >= tier and tier not in triggered:
+                                triggered.add(tier)
+                                pct_display = int(tier * 100)
                                 profit_dollars = round(profit_captured * pos.get('volume', 0), 2)
                                 
-                                log.info(f"💰 PROFIT PROTECTION: Trade is {pct_display}% to TP (${profit_captured:,.2f} move, ~${profit_dollars:,.2f} profit) — Waking Claude!")
+                                # Tier-specific messaging
+                                if pct_display <= 40:
+                                    urgency = "📊"
+                                    msg_tone = "Early profit detected"
+                                elif pct_display <= 60:
+                                    urgency = "💰"
+                                    msg_tone = "Significant profit — evaluate exit"
+                                else:
+                                    urgency = "🔥"
+                                    msg_tone = "STRONG PROFIT — protect gains!"
+                                
+                                log.info(f"{urgency} PROFIT TIER {pct_display}%: ~${profit_dollars:,.2f} profit — Waking Claude!")
                                 
                                 if HAS_TELEGRAM_BOT:
                                     send_bot_message(
-                                        f"💰 *PROFIT PROTECTION WAKEUP*\n"
+                                        f"{urgency} *PROFIT PROTECTION — {pct_display}% TIER*\n"
                                         f"━━━━━━━━━━━━━━━━━━\n"
-                                        f"Trade is **{pct_display}%** of the way to TP!\n"
-                                        f"📈 Profit so far: ~`${profit_dollars:,.2f}`\n"
-                                        f"🎯 TP target: `${tp:,.2f}`\n"
+                                        f"{msg_tone}\n"
+                                        f"📈 Profit: ~`${profit_dollars:,.2f}`\n"
+                                        f"📍 Price: `${current_price:,.2f}`\n"
+                                        f"🎯 TP: `${tp:,.2f}` ({int(profit_ratio*100)}% reached)\n"
                                         f"━━━━━━━━━━━━━━━━━━\n"
-                                        f"_Waking Claude to decide: HOLD or TAKE PROFIT_"
+                                        f"_Claude deciding: HOLD / PARTIAL CLOSE / TAKE PROFIT_"
                                     )
                                 
                                 # Force Claude to evaluate immediately
                                 reactor.callLater(0, analysis_cycle)
+                                break  # Only trigger one tier per cycle
                             
                 # ─── TRAILING STOP LOGIC ─────────────
                 trailing_activation = getattr(config, 'TRAILING_ACTIVATION', 10.0)
