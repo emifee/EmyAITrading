@@ -77,9 +77,17 @@ def parse_raw_response(raw: str) -> dict:
         elif any(w in raw_lower for w in ["move sl", "breakeven", "move stop"]):
             action = "MOVE_SL_BE"
 
+        # Strip any XML tags from the reason to prevent Telegram Markdown parsing errors
+        import re
+        clean_reason = re.sub(r'<[^>]+>', '', reason).strip()
+        # Fallback to a basic string if it's completely empty after stripping
+        if not clean_reason:
+            clean_reason = "Unparseable raw response from Claude."
+
         fallback = {
             "action": action,
             "confidence": 40,
+            "confidence_level": "low",
             "entry_price": 0.0,
             "stop_loss": 0.0,
             "take_profit": 0.0,
@@ -89,10 +97,10 @@ def parse_raw_response(raw: str) -> dict:
             "sweep_detected": False,
             "key_level": 0.0,
             "session_grade": "B",
-            "position_action_reason": reason,
-            "reason": f"[Text fallback] {reason}",
+            "position_action_reason": clean_reason,
+            "reason": f"[Text fallback] {clean_reason}",
         }
-        log.info(f"Fallback decision: {action} — {reason[:100]}")
+        log.info(f"Fallback decision: {action} — {clean_reason[:100]}")
         return fallback
 
 
