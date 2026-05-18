@@ -18,6 +18,11 @@ except ImportError:
     HAS_JOURNAL = False
 
 
+def _safe(val, default=0):
+    """Return val if not None, else default. Fixes .get() returning None for existing keys."""
+    return val if val is not None else default
+
+
 def _get_market_session() -> tuple:
     """Determine the current forex market session and grade."""
     now = datetime.now(timezone.utc)
@@ -109,7 +114,7 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
         if indicators.get("sweep_detected"):
             sweep_section = (
                 f"🚨 {indicators['sweep_type']} detected!\n"
-                f"   Swept level: ${indicators.get('sweep_level', 0):,.2f}\n"
+                f"   Swept level: ${_safe(indicators.get('sweep_level')):,.2f}\n"
                 f"   Engulfing confirmation: {'YES ✅' if indicators.get('engulfing_detected') else 'NO — waiting'}"
             )
 
@@ -130,7 +135,7 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
                 sl = float(p.get("stopLoss", 0))
                 tp = float(p.get("takeProfit", 0))
                 current_pos_price = float(p.get("currentPrice", current_price))
-                upnl = p.get("unrealizedPnl", 0)
+                upnl = _safe(p.get("unrealizedPnl"))
                 pos_id = p.get("positionId", "?")
 
                 # Calculate distance to SL/TP
@@ -193,9 +198,9 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
                             sa = patterns["side_analysis"]
                             journal_section += (
                                 f"\n─── 🔍 PATTERN ANALYSIS ─────────────────────────\n"
-                                f"BUY trades: {sa['buy_total']} total, {sa['buy_wr']}% WR, P&L: ${sa['buy_pnl']:,.2f}\n"
-                                f"SELL trades: {sa['sell_total']} total, {sa['sell_wr']}% WR, P&L: ${sa['sell_pnl']:,.2f}\n"
-                                f"Current losing streak: {patterns['streak']}\n"
+                                f"BUY trades: {_safe(sa.get('buy_total'))} total, {_safe(sa.get('buy_wr'))}% WR, P&L: ${_safe(sa.get('buy_pnl')):,.2f}\n"
+                                f"SELL trades: {_safe(sa.get('sell_total'))} total, {_safe(sa.get('sell_wr'))}% WR, P&L: ${_safe(sa.get('sell_pnl')):,.2f}\n"
+                                f"Current losing streak: {_safe(patterns.get('streak'))}\n"
                             )
 
                             if patterns.get('streak', 0) >= 2:
@@ -281,13 +286,13 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
                 label = "H1 (60m)" if tf == 60 else "H4 (240m)"
                 mtfa_section += (
                     f"{label}:\n"
-                    f"  Price: ${ind.get('latest_close', 0):,.2f} | "
-                    f"Trend: {ind.get('trend', 'UNKNOWN')} | "
-                    f"Structure: {ind.get('structure', 'UNKNOWN')}\n"
-                    f"  EMA50: ${ind.get('ema50', 0):,.2f} | "
-                    f"EMA200: ${ind.get('ema200', 0):,.2f}\n"
-                    f"  MACD: {ind.get('macd', 0):.2f} | "
-                    f"RSI: {ind.get('rsi', 0):.1f}\n"
+                    f"  Price: ${_safe(ind.get('latest_close')):,.2f} | "
+                    f"Trend: {_safe(ind.get('trend'), 'UNKNOWN')} | "
+                    f"Structure: {_safe(ind.get('structure'), 'UNKNOWN')}\n"
+                    f"  EMA50: ${_safe(ind.get('ema50')):,.2f} | "
+                    f"EMA200: ${_safe(ind.get('ema200')):,.2f}\n"
+                    f"  MACD: {_safe(ind.get('macd')):.2f} | "
+                    f"RSI: {_safe(ind.get('rsi')):.1f}\n"
                 )
             mtfa_section += "\n⚡ MTFA RULE: Do NOT trade against the H1/H4 trend unless it's a confirmed massive sweep reversal.\n"
 
@@ -307,38 +312,38 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
         
         trend_section = (
             f"─── STEP 1: TREND DIRECTION (M15) ───────────────────\n"
-            f"EMA 50:         ${indicators.get('ema50', 0):,.2f}\n"
-            f"EMA 200:        ${indicators.get('ema200', 0):,.2f}\n"
-            f"Trend Bias:     {indicators.get('trend', 'UNKNOWN')}\n"
-            f"Structure:      {indicators.get('structure', 'Unknown')}\n"
-            f"EMA 20 (ref):   ${indicators.get('ema20', 0):,.2f}\n\n"
+            f"EMA 50:         ${_safe(indicators.get('ema50')):,.2f}\n"
+            f"EMA 200:        ${_safe(indicators.get('ema200')):,.2f}\n"
+            f"Trend Bias:     {_safe(indicators.get('trend'), 'UNKNOWN')}\n"
+            f"Structure:      {_safe(indicators.get('structure'), 'Unknown')}\n"
+            f"EMA 20 (ref):   ${_safe(indicators.get('ema20')):,.2f}\n\n"
         )
             
         key_levels_section = (
             "─── STEP 2: KEY LEVELS ─────────────────────────────\n"
-            f"Session High:   ${indicators.get('session_high', 0):,.2f}\n"
-            f"Session Low:    ${indicators.get('session_low', 0):,.2f}\n"
-            f"BB Upper:       ${indicators.get('bb_upper', 0):,.2f}\n"
-            f"BB Lower:       ${indicators.get('bb_lower', 0):,.2f}\n"
-            f"VWAP:           ${indicators.get('vwap', 0):,.2f}\n"
-            f"Fib 0.382:      ${indicators.get('fib_0382', 0):,.2f}\n"
-            f"Fib 0.500:      ${indicators.get('fib_0500', 0):,.2f}\n"
-            f"Fib 0.618:      ${indicators.get('fib_0618', 0):,.2f}\n"
-            f"Swing High:     ${indicators.get('swing_high', 0):,.2f}\n"
-            f"Swing Low:      ${indicators.get('swing_low', 0):,.2f}\n"
-            f"Nearest Round:  ${indicators.get('nearest_round', 0):,.2f} ({indicators.get('distance_to_round', 0):,.2f} away)\n"
+            f"Session High:   ${_safe(indicators.get('session_high')):,.2f}\n"
+            f"Session Low:    ${_safe(indicators.get('session_low')):,.2f}\n"
+            f"BB Upper:       ${_safe(indicators.get('bb_upper')):,.2f}\n"
+            f"BB Lower:       ${_safe(indicators.get('bb_lower')):,.2f}\n"
+            f"VWAP:           ${_safe(indicators.get('vwap')):,.2f}\n"
+            f"Fib 0.382:      ${_safe(indicators.get('fib_0382')):,.2f}\n"
+            f"Fib 0.500:      ${_safe(indicators.get('fib_0500')):,.2f}\n"
+            f"Fib 0.618:      ${_safe(indicators.get('fib_0618')):,.2f}\n"
+            f"Swing High:     ${_safe(indicators.get('swing_high')):,.2f}\n"
+            f"Swing Low:      ${_safe(indicators.get('swing_low')):,.2f}\n"
+            f"Nearest Round:  ${_safe(indicators.get('nearest_round')):,.2f} ({_safe(indicators.get('distance_to_round')):,.2f} away)\n"
         )
         
         sweep_data = f"─── STEP 3: SWEEP DETECTION ─────────────────────────\n{sweep_section}\n\n"
         
         supp_section = (
             "─── STEP 4: SUPPORTING DATA ─────────────────────────\n"
-            f"ATR(14):        ${indicators.get('atr', 0):,.2f}\n"
-            f"RSI(14):        {indicators.get('rsi', 'N/A')}\n"
-            f"MACD:           {indicators.get('macd', 'N/A')}\n"
-            f"MACD Histogram: {indicators.get('macd_hist', 'N/A')}\n"
-            f"Volume Ratio:   {indicators.get('volume_ratio', 0)}x avg {'📈 SPIKE' if indicators.get('volume_ratio', 0) > 1.5 else ''}\n"
-            f"Volume Delta:   {indicators.get('volume_delta', 'N/A')}\n"
+            f"ATR(14):        ${_safe(indicators.get('atr')):,.2f}\n"
+            f"RSI(14):        {_safe(indicators.get('rsi'), 'N/A')}\n"
+            f"MACD:           {_safe(indicators.get('macd'), 'N/A')}\n"
+            f"MACD Histogram: {_safe(indicators.get('macd_hist'), 'N/A')}\n"
+            f"Volume Ratio:   {_safe(indicators.get('volume_ratio'))}x avg {'📈 SPIKE' if _safe(indicators.get('volume_ratio')) > 1.5 else ''}\n"
+            f"Volume Delta:   {_safe(indicators.get('volume_delta'), 'N/A')}\n"
         )
 
         prompt = f"""
