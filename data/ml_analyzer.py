@@ -25,7 +25,7 @@ def analyze_edges():
     try:
         conn = sqlite3.connect(DB_PATH)
         # Use a sliding window of the last 100 trades so data is always fresh and dynamic
-        df = pd. pd.read_sql_query("SELECT * FROM trades ORDER BY opened_at DESC LIMIT 100", conn)
+        df = pd.read_sql_query("SELECT * FROM trades ORDER BY opened_at DESC LIMIT 100", conn)
         conn.close()
     except Exception as e:
         print(f"Failed to load DB: {e}")
