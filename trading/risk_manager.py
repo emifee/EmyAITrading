@@ -94,7 +94,24 @@ def calculate_position_size(balance: float, risk_pct: float,
             drawdown_multiplier = 0.50
             log.debug(f"📉 Drawdown ({drawdown_pct:.1f}%) > 5%. Applying 0.5x global multiplier.")
 
-    combined_multiplier = streak_multiplier * regime_multiplier * drawdown_multiplier
+    # Apply Daily Profit Multiplier (Protect Gains)
+    profit_multiplier = 1.0
+    try:
+        from data.trade_journal import get_stats
+        stats = get_stats()
+        today_pnl = stats.get("today_pnl", 0.0)
+        
+        if balance > 0 and today_pnl > 0:
+            starting_balance = balance - today_pnl
+            if starting_balance > 0:
+                daily_gain_pct = (today_pnl / starting_balance) * 100
+                if daily_gain_pct >= 3.0:
+                    profit_multiplier = 0.50
+                    log.info(f"🏆 Daily Target Hit ({daily_gain_pct:.1f}% >= 3.0%). Cutting lot size by 50% for the rest of the day to protect gains.")
+    except Exception as e:
+        log.debug(f"Failed to check daily profit: {e}")
+
+    combined_multiplier = streak_multiplier * regime_multiplier * drawdown_multiplier * profit_multiplier
     final_risk_pct = max(MIN_RISK_PCT, base_risk_pct * combined_multiplier)
 
     # Circuit breaker fail-safe
