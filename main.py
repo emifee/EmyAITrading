@@ -520,6 +520,8 @@ def tripwire_cycle():
         return
         
     try:
+        from ta.momentum import RSIIndicator
+        
         candles_1m = tick_agg.get_candles(1)
         if candles_1m.empty or len(candles_1m) < 15:
             return
@@ -531,30 +533,66 @@ def tripwire_cycle():
         previous_14 = recent.iloc[:-1]
         
         avg_vol = previous_14['volume'].mean()
-        if avg_vol == 0:
+        avg_range = (previous_14['high'] - previous_14['low']).mean()
+        
+        if avg_vol == 0 or avg_range == 0:
             return
             
         current_vol = latest_closed['volume']
-        vol_ratio = current_vol / avg_vol
+        current_range = latest_closed['high'] - latest_closed['low']
         
-        # Condition: Volume > 300% of average AND it's actually decent volume (e.g., > 50 ticks)
-        if vol_ratio >= 3.0 and current_vol > 50:
+        vol_ratio = current_vol / avg_vol
+        range_ratio = current_range / avg_range
+        
+        # --- 1. Volatility Triggers ---
+        trigger_vol = (vol_ratio >= 3.0 and current_vol > 50)
+        trigger_range = (range_ratio >= 3.0 and current_range >= 0.80)  # at least $0.80 move to avoid micro-chop
+        trigger_abs = (current_range >= 1.50)  # Massive $1.50 move in 60s
+        
+        # --- 2. Structural Triggers (TA) ---
+        # RSI Capitulation (Extreme overbought/oversold on 1m chart)
+        rsi_series = RSIIndicator(close=candles_1m["close"], window=14).rsi()
+        current_rsi = rsi_series.iloc[-2] if not rsi_series.empty else 50
+        trigger_rsi_oversold = (current_rsi < 20)
+        trigger_rsi_overbought = (current_rsi > 80)
+        
+        # Liquidity Sweep Detection (Massive wicks rejecting a direction)
+        wick_up = latest_closed['high'] - max(latest_closed['open'], latest_closed['close'])
+        wick_down = min(latest_closed['open'], latest_closed['close']) - latest_closed['low']
+        
+        # If the wick is huge (> $1.00) and represents 70%+ of the candle, it's a massive rejection
+        total_length = latest_closed['high'] - latest_closed['low']
+        trigger_sweep_bullish = (wick_down >= 1.0 and wick_down / total_length > 0.70) if total_length > 0 else False
+        trigger_sweep_bearish = (wick_up >= 1.0 and wick_up / total_length > 0.70) if total_length > 0 else False
+        
+        if trigger_vol or trigger_range or trigger_abs or trigger_rsi_oversold or trigger_rsi_overbought or trigger_sweep_bullish or trigger_sweep_bearish:
             now = datetime.now(timezone.utc)
             
-            # Cooldown: Don't trigger if we just triggered within 15 minutes
+            # Cooldown: Don't trigger if we just triggered within 10 minutes
             if last_tripwire_time is not None:
                 mins_since = (now - last_tripwire_time).total_seconds() / 60
-                if mins_since < 15:
+                if mins_since < 10:
                     return
             
             last_tripwire_time = now
-            log.warning(f"⚡ VOLATILITY TRIPWIRE TRIGGERED! 1m Volume spike detected ({vol_ratio:.1f}x average)")
+            
+            reasons = []
+            if trigger_vol: reasons.append(f"Volume {vol_ratio:.1f}x")
+            if trigger_range: reasons.append(f"Momentum {range_ratio:.1f}x")
+            if trigger_abs: reasons.append(f"Large ${current_range:.2f} move")
+            if trigger_rsi_oversold: reasons.append(f"RSI Capitulation ({current_rsi:.1f})")
+            if trigger_rsi_overbought: reasons.append(f"RSI Exhaustion ({current_rsi:.1f})")
+            if trigger_sweep_bullish: reasons.append("Bullish Wick Sweep")
+            if trigger_sweep_bearish: reasons.append("Bearish Wick Sweep")
+            reason_str = " | ".join(reasons)
+            
+            log.warning(f"⚡ VOLATILITY TRIPWIRE TRIGGERED! {reason_str}")
             
             if HAS_TELEGRAM_BOT:
-                send_bot_message(f"⚡ *VOLATILITY TRIPWIRE TRIGGERED*\nMassive 1-minute volume spike ({vol_ratio:.1f}x average) detected. Waking Claude up early!")
+                send_bot_message(f"⚡ *VOLATILITY TRIPWIRE TRIGGERED*\n{reason_str} detected on the 1m chart. Waking Claude up early!")
                 
             # Fire analysis cycle out of schedule
-            reactor.callLater(0, analysis_cycle, wakeup_reason=f"VOLATILITY TRIPWIRE: Massive 1-minute volume spike ({vol_ratio:.1f}x average) detected. Evaluate the current trend and any open positions for sudden market shifts.")
+            reactor.callLater(0, analysis_cycle, wakeup_reason=f"VOLATILITY TRIPWIRE: {reason_str} detected. Evaluate the sudden market shift immediately.")
             
     except Exception as e:
         log.error(f"Tripwire error: {e}")
@@ -1062,6 +1100,34 @@ def on_connected(c):
         _analysis_loop = task.LoopingCall(analysis_cycle)
         _analysis_loop.start(config.ANALYSIS_INTERVAL_MINUTES * 60, now=False)
         log.info(f"⏰ Analysis loop: every {config.ANALYSIS_INTERVAL_MINUTES} min")
+
+        def _update_progress_bar():
+            try:
+                import sys
+                from twisted.internet import reactor
+                if not getattr(_analysis_loop, "running", False) or not hasattr(_analysis_loop, "call") or not _analysis_loop.call:
+                    return
+                
+                time_left = max(0, int(_analysis_loop.call.getTime() - reactor.seconds()))
+                interval = config.ANALYSIS_INTERVAL_MINUTES * 60
+                
+                if time_left > interval:
+                    time_left = interval
+                    
+                pct = 1.0 - (time_left / interval)
+                bar_len = 20
+                filled = int(bar_len * pct)
+                bar = "█" * filled + "░" * (bar_len - filled)
+                mins, secs = divmod(time_left, 60)
+                
+                if time_left > 0:
+                    sys.stdout.write(f"\r⏳ Next Analysis: [{bar}] {mins:02d}:{secs:02d} remaining\033[K")
+                    sys.stdout.flush()
+            except Exception:
+                pass
+
+        _pb_loop = task.LoopingCall(_update_progress_bar)
+        _pb_loop.start(1.0, now=False)
 
         _monitor_loop = task.LoopingCall(monitor_cycle)
         _monitor_loop.start(config.MONITOR_INTERVAL_MINUTES * 60, now=False)

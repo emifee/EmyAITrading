@@ -354,7 +354,7 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
             risk_warning = (
                 f"🚨 RISK ALERT: You are on a {streak_count}-trade losing streak today. "
                 f"Daily P&L: ${daily_pnl:,.2f}.\n"
-                f"ADOPT MAXIMUM DEFENSIVE POSTURE. Reject all sub-optimal setups and prioritize capital preservation.\n"
+                f"Instead of blindly holding or artificially lowering confidence, DEEPEN YOUR ANALYSIS. You must actively hunt for an A+ high-probability setup with strict volume and structural confirmation to recover. If a pristine setup exists, trade it. If the market is choppy, wait patiently.\n"
             )
 
         # ─── Display All Indicators ─────────────────────────

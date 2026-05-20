@@ -1,6 +1,6 @@
-📊 EMY AI — BIG DATA EDGE REPORT (Last 48 Trades)
-Generated: 2026-05-18 23:33:17
-Overall Win Rate: 52.1%
+📊 EMY AI — BIG DATA EDGE REPORT (Last 49 Trades)
+Generated: 2026-05-20 07:19:03
+Overall Win Rate: 51.0%
 ==================================================
 
 📈 1. WIN RATE BY MARKET REGIME
@@ -8,12 +8,12 @@ Overall Win Rate: 52.1%
 Regime: RANGING_CHOPPY  | Trades: 9   | Win Rate: 44.4% | Avg PnL: $50.55
 Regime: TRANSITIONING   | Trades: 3   | Win Rate: 100.0% | Avg PnL: $421.79
 Regime: TRENDING_BEARISH | Trades: 5   | Win Rate: 60.0% | Avg PnL: $607.81
-Regime: UNKNOWN         | Trades: 31  | Win Rate: 48.4% | Avg PnL: $-261.11
+Regime: UNKNOWN         | Trades: 32  | Win Rate: 46.9% | Avg PnL: $-253.56
 
 ⏰ 2. WIN RATE BY HOUR OF DAY (UTC)
 ------------------------------
-Hour 00:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $0.00
-Hour 01:00 UTC | Trades: 2.0 | Win Rate: 100.0% | Total PnL: $767.03
+Hour 00:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-1.20
+Hour 01:00 UTC | Trades: 3.0 | Win Rate: 66.7% | Total PnL: $748.89
 Hour 02:00 UTC | Trades: 2.0 | Win Rate: 50.0% | Total PnL: $-177.30
 Hour 05:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-162.30
 Hour 06:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-231.00
@@ -36,4 +36,4 @@ Hour 23:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-53.38
 🔄 3. WIN RATE BY DIRECTION (BUY vs SELL)
 ------------------------------
 Side: BUY   | Trades: 15  | Win Rate: 40.0%
-Side: SELL  | Trades: 33  | Win Rate: 57.6%
+Side: SELL  | Trades: 34  | Win Rate: 55.9%
