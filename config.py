@@ -38,6 +38,8 @@ MONITOR_INTERVAL_MINUTES = int(os.getenv("MONITOR_INTERVAL_MINUTES", "5"))  # Lo
 
 # ─── Trading Parameters ───────────────────────────────────────
 TRADING_SYMBOL = os.getenv("TRADING_SYMBOL", "XAUUSDT")
+TRADING_SYMBOLS = [s.strip() for s in os.getenv('TRADING_SYMBOLS', TRADING_SYMBOL).split(',')]
+MAX_OPEN_TRADES = int(os.getenv('MAX_OPEN_TRADES', '3'))
 TRADING_CATEGORY = os.getenv("TRADING_CATEGORY", "linear")
 TRADING_TIMEFRAME = int(os.getenv("TRADING_TIMEFRAME", "15"))
 
@@ -127,7 +129,8 @@ def print_config_summary():
     log.info("║      🤖 Emy AI Trading System            ║")
     log.info("╠══════════════════════════════════════════╣")
     log.info(f"║  Broker:    {broker_label:<28} ║")
-    log.info(f"║  Symbol:    {TRADING_SYMBOL:<28} ║")
+    symbols_str = ', '.join(TRADING_SYMBOLS)
+    log.info(f"║  Symbols:   {symbols_str:<28} ║")
     log.info(f"║  AI Model:  {CLAUDE_MODEL:<28} ║")
     log.info(f"║  Analysis:  Every {ANALYSIS_INTERVAL_MINUTES}min{' ' * (23 - len(str(ANALYSIS_INTERVAL_MINUTES)))}║")
     log.info(f"║  Monitor:   Every {MONITOR_INTERVAL_MINUTES}min{' ' * (23 - len(str(MONITOR_INTERVAL_MINUTES)))}║")

@@ -51,7 +51,8 @@ def format_for_claude(candles_15m: pd.DataFrame, indicators: dict,
                        account: dict, candles_1m: pd.DataFrame = None,
                        tick_info: dict = None, mtfa_data: dict = None,
                        market_regime: str = "UNKNOWN", ml_report: str = "",
-                       wakeup_reason: str = None, streak_count: int = 0, daily_pnl: float = 0.0) -> str:
+                       wakeup_reason: str = None, streak_count: int = 0, daily_pnl: float = 0.0,
+                       symbol: str = "XAUUSD") -> str:
     """
     Build comprehensive market data prompt for Trend + Liquidity Sweep strategy.
 
@@ -406,7 +407,7 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
             )
 
         prompt = f"""
-XAUUSD MARKET SNAPSHOT — {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}
+{symbol} MARKET SNAPSHOT — {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}
 Strategy: {strategy_text}
 ═══════════════════════════════════════════════════════
 

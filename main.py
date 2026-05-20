@@ -49,7 +49,9 @@ except ImportError:
 
 # ─── Global State ──────────────────────────────────────────────
 client = None
-tick_agg = TickAggregator(max_candles=200)
+# Per-symbol tick aggregators
+tick_aggregators = {symbol: TickAggregator(max_candles=200) for symbol in config.TRADING_SYMBOLS}
+tick_agg = tick_aggregators.get(config.TRADING_SYMBOL, TickAggregator(max_candles=200))  # backward compat alias
 _analysis_loop = None
 _monitor_loop = None
 _previous_position_ids = set()  # Track positions to detect closes
@@ -87,16 +89,16 @@ def handle_message(c, msg):
                 symbol_name = name
                 break
 
-        if symbol_name:
+        if symbol_name and symbol_name in tick_aggregators:
             bid = extracted.bid / 100000.0 if hasattr(extracted, "bid") and extracted.bid else 0
             ask = extracted.ask / 100000.0 if hasattr(extracted, "ask") and extracted.ask else 0
 
             if bid > 0 and ask > 0:
-                tick_agg.on_tick(bid, ask)
+                tick_aggregators[symbol_name].on_tick(bid, ask)
 
                 # Log every 100th tick to avoid spam
-                if tick_agg.tick_count % 100 == 0:
-                    log.debug(f"📡 Tick #{tick_agg.tick_count}: ${(bid+ask)/2:,.2f}")
+                if tick_aggregators[symbol_name].tick_count % 100 == 0:
+                    log.debug(f"📡 {symbol_name} Tick #{tick_aggregators[symbol_name].tick_count}: ${(bid+ask)/2:,.2f}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -104,10 +106,14 @@ def handle_message(c, msg):
 # ═══════════════════════════════════════════════════════════════
 
 @defer.inlineCallbacks
-def analysis_cycle(wakeup_reason=None):
+def analysis_cycle(wakeup_reason=None, symbol=None):
     """Full Claude AI analysis cycle — runs every ANALYSIS_INTERVAL_MINUTES."""
+    # Resolve target symbol
+    target_symbol = symbol or config.TRADING_SYMBOL
+    symbol_agg = tick_aggregators.get(target_symbol, tick_agg)
+
     log.info("═══════════════════════════════════════════════════════")
-    log.info(f"        🧠 CLAUDE ANALYSIS CYCLE START{' (' + wakeup_reason + ')' if wakeup_reason else ''}")
+    log.info(f"        🧠 CLAUDE ANALYSIS CYCLE START — {target_symbol}{' (' + wakeup_reason + ')' if wakeup_reason else ''}")
     log.info("═══════════════════════════════════════════════════════")
 
     try:
@@ -147,6 +153,14 @@ def analysis_cycle(wakeup_reason=None):
             log.info("⏳ Cooldown active — skipping analysis")
             return
 
+        # ─── Step 1.5: Global trade cap ───────────────────────
+        _cap_positions = yield get_open_positions(client)
+        if len(_cap_positions) >= config.MAX_OPEN_TRADES:
+            log.info(f"🚫 Max {config.MAX_OPEN_TRADES} trades open — skipping new analysis for {target_symbol}")
+            if HAS_TELEGRAM_BOT:
+                send_bot_message(f"🚫 *Trade cap reached* ({config.MAX_OPEN_TRADES}/{config.MAX_OPEN_TRADES})\nSkipping {target_symbol} analysis.")
+            return
+
         # ─── Step 2: Get candle data ──────────────────────────
         log.debug("📊 Preparing market data for Claude (M15, H1, H4)...")
 
@@ -156,17 +170,17 @@ def analysis_cycle(wakeup_reason=None):
         indicators = {}
         
         for tf in timeframes_to_fetch:
-            df = tick_agg.get_candles(tf)
+            df = symbol_agg.get_candles(tf)
             if df.empty or len(df) < 20:
-                log.debug(f"📊 Insufficient {tf}m candles — fetching from cTrader API...")
+                log.debug(f"📊 Insufficient {tf}m candles for {target_symbol} — fetching from cTrader API...")
                 # Map minutes to ProtoOATrendbarPeriod if needed, get_trendbars handles this
                 raw_candles = yield get_trendbars(
-                    client, config.TRADING_SYMBOL,
+                    client, target_symbol,
                     period_minutes=tf, count=50
                 )
                 if raw_candles:
-                    tick_agg.load_historical(raw_candles, timeframe=tf)
-                    df = tick_agg.get_candles(tf)
+                    symbol_agg.load_historical(raw_candles, timeframe=tf)
+                    df = symbol_agg.get_candles(tf)
             candles[tf] = df
             
         candles_15m = candles[15]
@@ -176,7 +190,7 @@ def analysis_cycle(wakeup_reason=None):
             return
 
         # Get 1-minute candles for short-term view
-        candles_1m = tick_agg.get_candles(1)
+        candles_1m = symbol_agg.get_candles(1)
 
         # ─── Step 3: Calculate indicators ─────────────────────
         log.debug("📐 Calculating technical indicators for all timeframes...")
@@ -202,7 +216,7 @@ def analysis_cycle(wakeup_reason=None):
 
         # ─── Step 4: Get account info + open positions + ticks ──
         account = yield get_account_info(client)
-        tick_info = tick_agg.get_current_price()
+        tick_info = symbol_agg.get_current_price()
 
         # Determine Market Regime (Dual-Timeframe M15 + H1)
         from trading.regime_manager import regime_manager
@@ -251,7 +265,8 @@ def analysis_cycle(wakeup_reason=None):
             ml_report=ml_report_cache,
             wakeup_reason=wakeup_reason,
             streak_count=risk_state.streak_count,
-            daily_pnl=today_pnl
+            daily_pnl=today_pnl,
+            symbol=target_symbol
         )
 
         log.debug(f"🧠 Sending data to {config.CLAUDE_MODEL}...")
@@ -395,9 +410,10 @@ def analysis_cycle(wakeup_reason=None):
                             )
             return
 
-        # ─── Step 9: New trade — check no existing positions ──
-        if positions:
-            log.info(f"📍 {len(positions)} position(s) open — skipping new entry")
+        # ─── Step 9: New trade — check no existing positions for this symbol ──
+        symbol_positions = [p for p in positions if p.get('symbol') == target_symbol]
+        if symbol_positions:
+            log.info(f"📍 {target_symbol} already has {len(symbol_positions)} position(s) — skipping new entry")
             return
 
         # (Dynamic ATR SL Override Removed to trust Claude's structural SL)
@@ -419,7 +435,7 @@ def analysis_cycle(wakeup_reason=None):
         log.info("🚀 Executing trade via cTrader...")
         order = yield place_market_order(
             client,
-            config.TRADING_SYMBOL,
+            target_symbol,
             decision["action"],
             qty,
             sl_price=decision["stop_loss"],
@@ -451,7 +467,7 @@ def analysis_cycle(wakeup_reason=None):
                 action_emoji = "🟢" if decision["action"] == "BUY" else "🔴"
                 safe_reason = str(decision.get('reason', 'N/A')).replace("_", "-")
                 send_bot_message(
-                    f"{action_emoji} *{decision['action']} {config.TRADING_SYMBOL}*\n"
+                    f"{action_emoji} *{decision['action']} {target_symbol}*\n"
                     f"━━━━━━━━━━━━━━━━━━\n"
                     f"📍 Entry: `${decision['entry_price']:,.2f}`\n"
                     f"🛑 SL: `${decision['stop_loss']:,.2f}`\n"
@@ -463,7 +479,7 @@ def analysis_cycle(wakeup_reason=None):
                 )
 
             send_alert(
-                f"🚀 Trade Executed: {decision['action']} {config.TRADING_SYMBOL}\n"
+                f"🚀 Trade Executed: {decision['action']} {target_symbol}\n"
                 f"Entry: ${decision['entry_price']:,.2f} | SL: ${decision['stop_loss']:,.2f} | TP: ${decision['take_profit']:,.2f}"
             )
 
@@ -500,7 +516,7 @@ def update_ml_report():
 # TIER 1.5: Volatility Tripwire (every 60 sec)
 # ═══════════════════════════════════════════════════════════════
 
-last_tripwire_time = None
+last_tripwire_time = {symbol: None for symbol in config.TRADING_SYMBOLS}
 
 def is_market_open():
     now = datetime.now(timezone.utc)
@@ -510,92 +526,93 @@ def is_market_open():
 
 def tripwire_cycle():
     """
-    Runs every 60 seconds. Checks 1m volume for massive spikes.
-    If it detects an explosion, it forces an out-of-schedule analysis_cycle.
+    Runs every 60 seconds. Scans ALL tracked symbols for volatility spikes,
+    RSI capitulation, and wick sweeps. Wakes Claude only for the triggered symbol.
     """
-    global last_tripwire_time
-    
-    # Don't trigger if market is closed
     if not is_market_open():
         return
-        
-    try:
-        from ta.momentum import RSIIndicator
-        
-        candles_1m = tick_agg.get_candles(1)
-        if candles_1m.empty or len(candles_1m) < 15:
-            return
-            
-        # Get the latest closed candle and the previous 14 candles
-        # Note: The absolute last row might still be forming, so we look at the last closed one
-        recent = candles_1m.iloc[-16:-1]
-        latest_closed = recent.iloc[-1]
-        previous_14 = recent.iloc[:-1]
-        
-        avg_vol = previous_14['volume'].mean()
-        avg_range = (previous_14['high'] - previous_14['low']).mean()
-        
-        if avg_vol == 0 or avg_range == 0:
-            return
-            
-        current_vol = latest_closed['volume']
-        current_range = latest_closed['high'] - latest_closed['low']
-        
-        vol_ratio = current_vol / avg_vol
-        range_ratio = current_range / avg_range
-        
-        # --- 1. Volatility Triggers ---
-        trigger_vol = (vol_ratio >= 3.0 and current_vol > 50)
-        trigger_range = (range_ratio >= 3.0 and current_range >= 0.80)  # at least $0.80 move to avoid micro-chop
-        trigger_abs = (current_range >= 1.50)  # Massive $1.50 move in 60s
-        
-        # --- 2. Structural Triggers (TA) ---
-        # RSI Capitulation (Extreme overbought/oversold on 1m chart)
-        rsi_series = RSIIndicator(close=candles_1m["close"], window=14).rsi()
-        current_rsi = rsi_series.iloc[-2] if not rsi_series.empty else 50
-        trigger_rsi_oversold = (current_rsi < 20)
-        trigger_rsi_overbought = (current_rsi > 80)
-        
-        # Liquidity Sweep Detection (Massive wicks rejecting a direction)
-        wick_up = latest_closed['high'] - max(latest_closed['open'], latest_closed['close'])
-        wick_down = min(latest_closed['open'], latest_closed['close']) - latest_closed['low']
-        
-        # If the wick is huge (> $1.00) and represents 70%+ of the candle, it's a massive rejection
-        total_length = latest_closed['high'] - latest_closed['low']
-        trigger_sweep_bullish = (wick_down >= 1.0 and wick_down / total_length > 0.70) if total_length > 0 else False
-        trigger_sweep_bearish = (wick_up >= 1.0 and wick_up / total_length > 0.70) if total_length > 0 else False
-        
-        if trigger_vol or trigger_range or trigger_abs or trigger_rsi_oversold or trigger_rsi_overbought or trigger_sweep_bullish or trigger_sweep_bearish:
-            now = datetime.now(timezone.utc)
-            
-            # Cooldown: Don't trigger if we just triggered within 10 minutes
-            if last_tripwire_time is not None:
-                mins_since = (now - last_tripwire_time).total_seconds() / 60
-                if mins_since < 10:
-                    return
-            
-            last_tripwire_time = now
-            
-            reasons = []
-            if trigger_vol: reasons.append(f"Volume {vol_ratio:.1f}x")
-            if trigger_range: reasons.append(f"Momentum {range_ratio:.1f}x")
-            if trigger_abs: reasons.append(f"Large ${current_range:.2f} move")
-            if trigger_rsi_oversold: reasons.append(f"RSI Capitulation ({current_rsi:.1f})")
-            if trigger_rsi_overbought: reasons.append(f"RSI Exhaustion ({current_rsi:.1f})")
-            if trigger_sweep_bullish: reasons.append("Bullish Wick Sweep")
-            if trigger_sweep_bearish: reasons.append("Bearish Wick Sweep")
-            reason_str = " | ".join(reasons)
-            
-            log.warning(f"⚡ VOLATILITY TRIPWIRE TRIGGERED! {reason_str}")
-            
-            if HAS_TELEGRAM_BOT:
-                send_bot_message(f"⚡ *VOLATILITY TRIPWIRE TRIGGERED*\n{reason_str} detected on the 1m chart. Waking Claude up early!")
-                
-            # Fire analysis cycle out of schedule
-            reactor.callLater(0, analysis_cycle, wakeup_reason=f"VOLATILITY TRIPWIRE: {reason_str} detected. Evaluate the sudden market shift immediately.")
-            
-    except Exception as e:
-        log.error(f"Tripwire error: {e}")
+
+    TRIPWIRE_THRESHOLDS = {
+        'XAUUSD': {'range_min': 0.80, 'sweep_wick': 1.00, 'abs_move': 1.50},
+        'EURUSD': {'range_min': 0.00050, 'sweep_wick': 0.00080, 'abs_move': 0.0015},
+        'USDJPY': {'range_min': 0.080, 'sweep_wick': 0.120, 'abs_move': 0.200},
+        'BTCUSD': {'range_min': 80.0, 'sweep_wick': 120.0, 'abs_move': 200.0},
+    }
+
+    for symbol in config.TRADING_SYMBOLS:
+        try:
+            from ta.momentum import RSIIndicator
+
+            sym_agg = tick_aggregators.get(symbol)
+            if sym_agg is None:
+                continue
+
+            candles_1m = sym_agg.get_candles(1)
+            if candles_1m.empty or len(candles_1m) < 15:
+                continue
+
+            recent = candles_1m.iloc[-16:-1]
+            latest_closed = recent.iloc[-1]
+            previous_14 = recent.iloc[:-1]
+
+            avg_vol = previous_14['volume'].mean()
+            avg_range = (previous_14['high'] - previous_14['low']).mean()
+
+            if avg_vol == 0 or avg_range == 0:
+                continue
+
+            current_vol = latest_closed['volume']
+            current_range = latest_closed['high'] - latest_closed['low']
+
+            vol_ratio = current_vol / avg_vol
+            range_ratio = current_range / avg_range
+
+            thresholds = TRIPWIRE_THRESHOLDS.get(symbol, TRIPWIRE_THRESHOLDS['XAUUSD'])
+
+            trigger_vol = (vol_ratio >= 3.0 and current_vol > 50)
+            trigger_range = (range_ratio >= 3.0 and current_range >= thresholds['range_min'])
+            trigger_abs = (current_range >= thresholds['abs_move'])
+
+            rsi_series = RSIIndicator(close=candles_1m["close"], window=14).rsi()
+            current_rsi = rsi_series.iloc[-2] if not rsi_series.empty else 50
+            trigger_rsi_oversold = (current_rsi < 20)
+            trigger_rsi_overbought = (current_rsi > 80)
+
+            wick_up = latest_closed['high'] - max(latest_closed['open'], latest_closed['close'])
+            wick_down = min(latest_closed['open'], latest_closed['close']) - latest_closed['low']
+            total_length = latest_closed['high'] - latest_closed['low']
+            trigger_sweep_bullish = (wick_down >= thresholds['sweep_wick'] and wick_down / total_length > 0.70) if total_length > 0 else False
+            trigger_sweep_bearish = (wick_up >= thresholds['sweep_wick'] and wick_up / total_length > 0.70) if total_length > 0 else False
+
+            if trigger_vol or trigger_range or trigger_abs or trigger_rsi_oversold or trigger_rsi_overbought or trigger_sweep_bullish or trigger_sweep_bearish:
+                now = datetime.now(timezone.utc)
+
+                if last_tripwire_time.get(symbol) is not None:
+                    mins_since = (now - last_tripwire_time[symbol]).total_seconds() / 60
+                    if mins_since < 10:
+                        continue
+
+                last_tripwire_time[symbol] = now
+
+                reasons = []
+                if trigger_vol: reasons.append(f"Volume {vol_ratio:.1f}x")
+                if trigger_range: reasons.append(f"Momentum {range_ratio:.1f}x")
+                if trigger_abs: reasons.append(f"Large move ({current_range:.5g})")
+                if trigger_rsi_oversold: reasons.append(f"RSI Capitulation ({current_rsi:.1f})")
+                if trigger_rsi_overbought: reasons.append(f"RSI Exhaustion ({current_rsi:.1f})")
+                if trigger_sweep_bullish: reasons.append("Bullish Wick Sweep")
+                if trigger_sweep_bearish: reasons.append("Bearish Wick Sweep")
+                reason_str = " | ".join(reasons)
+
+                log.warning(f"⚡ TRIPWIRE [{symbol}]: {reason_str}")
+
+                if HAS_TELEGRAM_BOT:
+                    send_bot_message(f"⚡ *TRIPWIRE [" + symbol + "]*\n" + reason_str + " detected on the 1m chart. Waking Claude up!")
+
+                reactor.callLater(0, analysis_cycle, symbol=symbol, wakeup_reason=f"TRIPWIRE [{symbol}]: {reason_str}. Evaluate immediately.")
+
+        except Exception as e:
+            log.error(f"Tripwire error ({symbol}): {e}")
 
 
 
@@ -997,30 +1014,27 @@ def on_connected(c):
         # Step 3: Load symbols
         yield get_symbol_list(c)
 
-        # Step 4: Get symbol details for XAUUSD
-        symbol_id = _symbol_cache.get(config.TRADING_SYMBOL)
-        if symbol_id:
-            yield get_symbol_details(c, symbol_id)
-            log.info(f"✅ {config.TRADING_SYMBOL} ready (ID: {symbol_id})")
-        else:
-            log.error(f"❌ {config.TRADING_SYMBOL} not found!")
-            reactor.stop()
-            return
+        # Step 4: Get symbol details and subscribe for ALL trading symbols
+        for sym in config.TRADING_SYMBOLS:
+            symbol_id = _symbol_cache.get(sym)
+            if symbol_id:
+                yield get_symbol_details(c, symbol_id)
+                log.info(f"✅ {sym} ready (ID: {symbol_id})")
+            else:
+                log.warning(f"⚠️ {sym} not found in broker symbol list — skipping")
+                continue
 
-        # Step 5: Load historical candles
-        log.info("📊 Loading historical candles...")
-        raw_candles = yield get_trendbars(
-            c, config.TRADING_SYMBOL,
-            period_minutes=15, count=200
-        )
-        if raw_candles:
-            tick_agg.load_historical(raw_candles, timeframe=15)
-            last_close = raw_candles[-1]["close"]
-            log.info(f"📊 Historical data loaded | Last close: ${last_close:,.2f}")
+            # Load historical candles for this symbol
+            log.info(f"📊 Loading historical candles for {sym}...")
+            raw_candles = yield get_trendbars(c, sym, period_minutes=15, count=200)
+            if raw_candles:
+                tick_aggregators[sym].load_historical(raw_candles, timeframe=15)
+                last_close = raw_candles[-1]["close"]
+                log.info(f"📊 {sym} historical data loaded | Last close: {last_close:,.5g}")
 
-        # Step 6: Subscribe to live ticks
-        yield subscribe_to_prices(c, config.TRADING_SYMBOL)
-        log.info(f"📡 Subscribed to {config.TRADING_SYMBOL} live ticks")
+            # Subscribe to live ticks
+            yield subscribe_to_prices(c, sym)
+            log.info(f"📡 Subscribed to {sym} live ticks")
 
         # Step 7: Start Telegram bot with callbacks
         if HAS_TELEGRAM_BOT and config.TELEGRAM_BOT_TOKEN:
@@ -1066,7 +1080,7 @@ def on_connected(c):
             send_bot_message(
                 f"🤖 *Emy AI Trading System Started*\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
-                f"📊 Symbol: `{config.TRADING_SYMBOL}`\n"
+                f"📊 Symbols: `{', '.join(config.TRADING_SYMBOLS)}`\n"
                 f"🧠 Model: `{config.CLAUDE_MODEL}`\n"
                 f"⏱️ Analysis: `Every {config.ANALYSIS_INTERVAL_MINUTES}min`\n"
                 f"📡 Monitor: `Every {config.MONITOR_INTERVAL_MINUTES}min`\n"
@@ -1077,7 +1091,7 @@ def on_connected(c):
         send_alert(
             f"🤖 Emy AI Trading System Started\n"
             f"Broker: cTrader {config.CTRADER_HOST.upper()}\n"
-            f"Symbol: {config.TRADING_SYMBOL}\n"
+            f"Symbols: {', '.join(config.TRADING_SYMBOLS)}\n"
             f"AI: {config.CLAUDE_MODEL} (every {config.ANALYSIS_INTERVAL_MINUTES}min)\n"
             f"Balance: ${account['balance']:,.2f}"
         )
