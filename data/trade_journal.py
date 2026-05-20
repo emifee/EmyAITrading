@@ -63,25 +63,25 @@ def init_journal():
 
 def log_trade_open(side, volume, entry_price, stop_loss, take_profit,
                     confidence=0, session_grade="", sweep_detected=False,
-                    reason="", position_id="", regime="UNKNOWN"):
+                    reason="", position_id="", regime="UNKNOWN", symbol="XAUUSD"):
     """Log a new trade when opened."""
     conn = _get_conn()
     conn.execute("""
         INSERT INTO trades (
-            opened_at, side, volume, entry_price, stop_loss, take_profit,
+            opened_at, symbol, side, volume, entry_price, stop_loss, take_profit,
             confidence, session_grade, sweep_detected, claude_reason,
             position_id, status, regime
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?)
     """, (
         datetime.now(timezone.utc).isoformat(),
-        side, volume, entry_price, stop_loss, take_profit,
+        symbol, side, volume, entry_price, stop_loss, take_profit,
         confidence, session_grade, 1 if sweep_detected else 0,
         reason, str(position_id), regime
     ))
     conn.commit()
     trade_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
     conn.close()
-    log.info(f"📓 Trade #{trade_id} logged: {side} @ ${entry_price:,.2f}")
+    log.info(f"📓 Trade #{trade_id} logged: {side} {symbol} @ ${entry_price:,.2f}")
     return trade_id
 
 

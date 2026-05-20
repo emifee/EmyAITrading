@@ -457,7 +457,8 @@ def analysis_cycle(wakeup_reason=None, symbol=None):
                     session_grade=decision.get("session_grade", ""),
                     sweep_detected=decision.get("sweep_detected", False),
                     reason=decision.get("reason", ""),
-                    regime=market_regime
+                    regime=market_regime,
+                    symbol=target_symbol
                 )
             except Exception as je:
                 log.warning(f"Journal logging failed: {je}")
@@ -626,14 +627,14 @@ def monitor_cycle():
     global _previous_position_ids, _last_wakeup_time, _profit_tiers_triggered
 
     try:
-        tick_info = tick_agg.get_current_price()
+        tick_info = tick_agg.get_current_price()  # Primary symbol (XAUUSD)
 
         if tick_info["bid"] <= 0:
             log.debug("⏳ No ticks received yet — waiting...")
             return
 
         log.info(
-            f"📡 Monitor | Price: ${tick_info['mid']:,.2f} | "
+            f"📡 Monitor | XAUUSD: ${tick_info['mid']:,.2f} | "
             f"Spread: ${tick_info['spread']:,.2f} | "
             f"Ticks: {tick_info['tick_count']:,}"
         )
@@ -656,6 +657,8 @@ def monitor_cycle():
             
             for closed_id in closed_ids:
                 log.info(f"🏁 Position {closed_id} was closed (SL/TP hit)")
+                # Use XAUUSD price as fallback for close logging
+                current_price = tick_info["mid"]
 
                 # Journal the close
                 try:
@@ -734,7 +737,10 @@ def monitor_cycle():
                 sl = pos.get("stopLoss", 0)
                 tp = pos.get("takeProfit", 0)
                 side = pos.get("side")
-                current_price = tick_info["mid"]
+                # Get live price for THIS position's symbol
+                pos_symbol = pos.get('symbol', config.TRADING_SYMBOL)
+                pos_tick = tick_aggregators.get(pos_symbol, tick_agg).get_current_price()
+                current_price = pos_tick["mid"] if pos_tick["bid"] > 0 else tick_info["mid"]
                 
                 if entry > 0 and sl > 0:
                     risk = abs(entry - sl)
@@ -795,7 +801,7 @@ def monitor_cycle():
                                 send_bot_message("🚨 *GUARD DOG WAKEUP*\nPrice entered Danger Zone (near SL/TP). Forcing Claude to evaluate immediately!")
                             
                             # Fire off analysis cycle asynchronously with reason
-                            reactor.callLater(0, analysis_cycle, wakeup_reason="DANGER ZONE: Price is within 15% of SL or TP. Check if we should exit early to protect capital.")
+                            reactor.callLater(0, analysis_cycle, symbol=pos_symbol, wakeup_reason="DANGER ZONE: Price is within 15% of SL or TP. Check if we should exit early to protect capital.")
 
                 # ─── TIERED PROFIT PROTECTION ─────────────
                 # Wake Claude at 30%, 40%, 50%, 60%, 70%, 80% of TP distance.
@@ -896,7 +902,7 @@ def monitor_cycle():
                                 )
                             
                             reason_msg = f"PROFIT PROTECTION TIER HIT: Trade is {pct_display}% of the way to TP. We are in profit. Please evaluate if we should TAKE PROFIT now, PARTIAL CLOSE, or if momentum is strong enough to HOLD for the remaining {100-pct_display}%."
-                            reactor.callLater(0, analysis_cycle, wakeup_reason=reason_msg)
+                            reactor.callLater(0, analysis_cycle, symbol=pos_symbol, wakeup_reason=reason_msg)
                             
                     # ─── TIERED LOSS PROTECTION ─────────────
                     # Wake Claude at 40%, 60%, 80% of SL distance (drawdown)
@@ -945,7 +951,7 @@ def monitor_cycle():
                                 
                                 # Force Claude to evaluate immediately with reason
                                 reason_msg = f"LOSS PROTECTION TIER HIT: Trade is {pct_display}% of the way to Stop Loss. We are in drawdown. Perform deep structural analysis. If the setup is completely invalidated (e.g. key levels broken, momentum shifted), recommend CLOSE_TRADE now to save capital. If the setup is still structurally valid and this is just a normal pullback, recommend HOLD."
-                                reactor.callLater(0, analysis_cycle, wakeup_reason=reason_msg)
+                                reactor.callLater(0, analysis_cycle, symbol=pos_symbol, wakeup_reason=reason_msg)
                             
                 # ─── TRAILING STOP LOGIC ─────────────
                 trailing_activation = getattr(config, 'TRAILING_ACTIVATION', 10.0)
