@@ -23,19 +23,30 @@ BYBIT_TESTNET = os.getenv("BYBIT_TESTNET", "true").lower() == "true"
 # ─── cTrader Configuration ───────────────────────────────────
 CTRADER_CLIENT_ID = os.getenv("CTRADER_CLIENT_ID", "")
 CTRADER_CLIENT_SECRET = os.getenv("CTRADER_CLIENT_SECRET", "")
-CTRADER_ACCESS_TOKEN = os.getenv("CTRADER_ACCESS_TOKEN", "")
-CTRADER_ACCOUNT_ID = os.getenv("CTRADER_ACCOUNT_ID", "")
-CTRADER_HOST = os.getenv("CTRADER_HOST", "demo")  # "demo" or "live"
+
+# Dual Execution Configuration
+DUAL_EXECUTION_ENABLED = os.getenv("DUAL_EXECUTION_ENABLED", "true").lower() == "true"
+
+# Live Account Credentials
+CTRADER_LIVE_ACCOUNT_ID = os.getenv("CTRADER_LIVE_ACCOUNT_ID", os.getenv("CTRADER_ACCOUNT_ID", ""))
+CTRADER_LIVE_ACCESS_TOKEN = os.getenv("CTRADER_LIVE_ACCESS_TOKEN", os.getenv("CTRADER_ACCESS_TOKEN", ""))
+
+# Demo Account Credentials
+CTRADER_DEMO_ACCOUNT_ID = os.getenv("CTRADER_DEMO_ACCOUNT_ID", "")
+CTRADER_DEMO_ACCESS_TOKEN = os.getenv("CTRADER_DEMO_ACCESS_TOKEN", "")
+
+CTRADER_HOST = os.getenv("CTRADER_HOST", "live")  # Fallback host if dual execution is disabled
 
 # ─── AI Configuration ─────────────────────────────────────────
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 ENABLE_PROMPT_CACHING = os.getenv("ENABLE_PROMPT_CACHING", "true").lower() == "true"
 
-# ─── Scheduling ───────────────────────────────────────────────
-ANALYSIS_INTERVAL_MINUTES = int(os.getenv("ANALYSIS_INTERVAL_MINUTES", "30"))  # Claude analysis every 30 min
+# ─── Scheduling & Hibernation ─────────────────────────────────
+ANALYSIS_INTERVAL_MINUTES = int(os.getenv("ANALYSIS_INTERVAL_MINUTES", "15"))  # Claude analysis every 15 min
 MONITOR_INTERVAL_MINUTES = int(os.getenv("MONITOR_INTERVAL_MINUTES", "5"))  # Local position check every 5 min
-
+DEAD_ZONE_START = os.getenv("DEAD_ZONE_START", "Fri 21:00")
+DEAD_ZONE_END = os.getenv("DEAD_ZONE_END", "Sun 21:00")
 # ─── Trading Parameters ───────────────────────────────────────
 TRADING_SYMBOL = os.getenv("TRADING_SYMBOL", "XAUUSDT")
 TRADING_SYMBOLS = [s.strip() for s in os.getenv('TRADING_SYMBOLS', TRADING_SYMBOL).split(',')]
@@ -53,7 +64,7 @@ MIN_RR_RATIO = float(os.getenv("MIN_RR_RATIO", "0.85"))
 MAX_DAILY_LOSS = MAX_DAILY_LOSS_PCT
 MAX_DRAWDOWN = MAX_DRAWDOWN_PCT
 MIN_RISK_REWARD = MIN_RR_RATIO
-MIN_CONFIDENCE = 60  # Minimum AI confidence to execute a trade (adjusted for LLM conservative scoring)
+MIN_CONFIDENCE = 50  # Minimum AI confidence to execute a trade
 COOLDOWN_MINUTES = 15  # Cooldown after a losing trade
 MAX_LOT_SIZE = float(os.getenv("MAX_LOT_SIZE", "2.0"))  # Max lot size per trade (increased for dynamic sizing)
 BREAKEVEN_BUFFER = float(os.getenv("BREAKEVEN_BUFFER", "1.00"))  # Buffer in price units (e.g. $1.00) to ensure +$10 net profit after commission
@@ -102,8 +113,13 @@ def validate_config():
             errors.append("CTRADER_CLIENT_ID")
         if not CTRADER_CLIENT_SECRET or "your_" in CTRADER_CLIENT_SECRET:
             errors.append("CTRADER_CLIENT_SECRET")
-        if not CTRADER_ACCESS_TOKEN or "your_" in CTRADER_ACCESS_TOKEN:
-            errors.append("CTRADER_ACCESS_TOKEN")
+            
+        if DUAL_EXECUTION_ENABLED:
+            if not CTRADER_LIVE_ACCESS_TOKEN: errors.append("CTRADER_LIVE_ACCESS_TOKEN")
+            if not CTRADER_DEMO_ACCESS_TOKEN: errors.append("CTRADER_DEMO_ACCESS_TOKEN")
+        else:
+            if not CTRADER_LIVE_ACCESS_TOKEN and not CTRADER_DEMO_ACCESS_TOKEN:
+                errors.append("CTRADER_ACCESS_TOKEN")
 
     if not ANTHROPIC_API_KEY or "your_" in ANTHROPIC_API_KEY:
         errors.append("ANTHROPIC_API_KEY")
@@ -123,7 +139,7 @@ def print_config_summary():
     if BROKER == "bybit":
         broker_label = f"Bybit ({'🧪 TESTNET' if BYBIT_TESTNET else '🔴 MAINNET'})"
     else:
-        broker_label = f"cTrader ({'🧪 DEMO' if CTRADER_HOST == 'demo' else '🔴 LIVE'})"
+        broker_label = "cTrader (🔴 LIVE + 🧪 DEMO)" if DUAL_EXECUTION_ENABLED else f"cTrader ({'🧪 DEMO' if CTRADER_HOST == 'demo' else '🔴 LIVE'})"
 
     log.info("╔══════════════════════════════════════════╗")
     log.info("║      🤖 Emy AI Trading System            ║")
@@ -132,6 +148,13 @@ def print_config_summary():
     symbols_str = ', '.join(TRADING_SYMBOLS)
     log.info(f"║  Symbols:   {symbols_str:<28} ║")
     log.info(f"║  AI Model:  {CLAUDE_MODEL:<28} ║")
+    
+    import os
+    keys_str = os.getenv("GEMINI_API_KEYS", "")
+    num_keys = len([k.strip() for k in keys_str.split(",") if k.strip()]) if keys_str else (1 if os.getenv("GEMINI_API_KEY") else 0)
+    lookout_str = f"Gemini 2.5 Flash ({num_keys} keys)"
+    log.info(f"║  Lookout:   {lookout_str:<28} ║")
+    
     log.info(f"║  Analysis:  Every {ANALYSIS_INTERVAL_MINUTES}min{' ' * (23 - len(str(ANALYSIS_INTERVAL_MINUTES)))}║")
     log.info(f"║  Monitor:   Every {MONITOR_INTERVAL_MINUTES}min{' ' * (23 - len(str(MONITOR_INTERVAL_MINUTES)))}║")
     log.info(f"║  Max Risk:  {MAX_RISK_PER_TRADE}% per trade{' ' * 17}║")

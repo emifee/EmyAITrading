@@ -143,38 +143,62 @@ def log_trade_close(position_id, exit_price, exit_reason="TP/SL"):
 
     emoji = "🟢" if pnl_dollars >= 0 else "🔴"
     log.info(f"📓 Trade #{trade['id']} closed: {emoji} ${pnl_dollars:,.2f} ({exit_reason})")
+    
+    # ─── Record to AI Memory for Feedback Loop ───
+    try:
+        from ai.ai_memory import record_trade_outcome
+        record_trade_outcome(trade["symbol"], pnl_dollars, exit_reason, exit_price)
+    except Exception as e:
+        log.error(f"Failed to record trade outcome to AI memory: {e}")
+        
     return pnl_dollars
 
 
-def get_open_trades():
-    """Get all open trades."""
+def get_open_trades(symbol=None):
+    """Get all open trades, optionally filtered by symbol."""
     conn = _get_conn()
-    trades = conn.execute(
-        "SELECT * FROM trades WHERE status = 'OPEN' ORDER BY id DESC"
-    ).fetchall()
+    if symbol:
+        trades = conn.execute(
+            "SELECT * FROM trades WHERE status = 'OPEN' AND symbol = ? ORDER BY id DESC", (symbol,)
+        ).fetchall()
+    else:
+        trades = conn.execute(
+            "SELECT * FROM trades WHERE status = 'OPEN' ORDER BY id DESC"
+        ).fetchall()
     conn.close()
     return [dict(t) for t in trades]
 
 
-def get_recent_trades(limit=10):
-    """Get the most recent closed trades."""
+def get_recent_trades(limit=10, symbol=None):
+    """Get the most recent closed trades, optionally filtered by symbol."""
     conn = _get_conn()
-    trades = conn.execute(
-        "SELECT * FROM trades WHERE status = 'CLOSED' ORDER BY closed_at DESC LIMIT ?",
-        (limit,)
-    ).fetchall()
+    if symbol:
+        trades = conn.execute(
+            "SELECT * FROM trades WHERE status = 'CLOSED' AND symbol = ? ORDER BY closed_at DESC LIMIT ?",
+            (symbol, limit)
+        ).fetchall()
+    else:
+        trades = conn.execute(
+            "SELECT * FROM trades WHERE status = 'CLOSED' ORDER BY closed_at DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
     conn.close()
     return [dict(t) for t in trades]
 
 
-def get_stats():
-    """Get comprehensive trading statistics."""
+def get_stats(symbol=None):
+    """Get comprehensive trading statistics, optionally filtered by symbol."""
     conn = _get_conn()
 
-    # All closed trades
-    closed = conn.execute(
-        "SELECT * FROM trades WHERE status = 'CLOSED'"
-    ).fetchall()
+    # All closed trades (optionally filtered)
+    if symbol:
+        closed = conn.execute(
+            "SELECT * FROM trades WHERE status = 'CLOSED' AND symbol = ?", (symbol,)
+        ).fetchall()
+    else:
+        closed = conn.execute(
+            "SELECT * FROM trades WHERE status = 'CLOSED'"
+        ).fetchall()
 
     if not closed:
         conn.close()
@@ -187,9 +211,14 @@ def get_stats():
         }
 
     # Count open trades
-    open_count = conn.execute(
-        "SELECT COUNT(*) FROM trades WHERE status = 'OPEN'"
-    ).fetchone()[0]
+    if symbol:
+        open_count = conn.execute(
+            "SELECT COUNT(*) FROM trades WHERE status = 'OPEN' AND symbol = ?", (symbol,)
+        ).fetchone()[0]
+    else:
+        open_count = conn.execute(
+            "SELECT COUNT(*) FROM trades WHERE status = 'OPEN'"
+        ).fetchone()[0]
 
     pnls = [t["pnl_dollars"] for t in closed]
     wins = [p for p in pnls if p > 0]
@@ -198,10 +227,16 @@ def get_stats():
 
     # Today's trades
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    today_trades = conn.execute(
-        "SELECT pnl_dollars FROM trades WHERE status = 'CLOSED' AND closed_at LIKE ?",
-        (f"{today}%",)
-    ).fetchall()
+    if symbol:
+        today_trades = conn.execute(
+            "SELECT pnl_dollars FROM trades WHERE status = 'CLOSED' AND closed_at LIKE ? AND symbol = ?",
+            (f"{today}%", symbol)
+        ).fetchall()
+    else:
+        today_trades = conn.execute(
+            "SELECT pnl_dollars FROM trades WHERE status = 'CLOSED' AND closed_at LIKE ?",
+            (f"{today}%",)
+        ).fetchall()
     today_pnl = sum(t["pnl_dollars"] for t in today_trades)
 
     conn.close()
@@ -282,8 +317,11 @@ def get_time_reports():
     return reports
 
 
-def get_loss_patterns():
+def get_loss_patterns(symbol=None):
     """Analyze losing trades to find common failure patterns.
+    
+    Args:
+        symbol: Optional symbol filter (e.g. 'XAUUSD'). None = all pairs.
     
     Returns a dict with:
     - side_stats: win rate by BUY vs SELL
@@ -293,9 +331,14 @@ def get_loss_patterns():
     - streak: current win/loss streak
     """
     conn = _get_conn()
-    closed = conn.execute(
-        "SELECT * FROM trades WHERE status = 'CLOSED' ORDER BY closed_at DESC"
-    ).fetchall()
+    if symbol:
+        closed = conn.execute(
+            "SELECT * FROM trades WHERE status = 'CLOSED' AND symbol = ? ORDER BY closed_at DESC", (symbol,)
+        ).fetchall()
+    else:
+        closed = conn.execute(
+            "SELECT * FROM trades WHERE status = 'CLOSED' ORDER BY closed_at DESC"
+        ).fetchall()
     conn.close()
 
     if not closed:

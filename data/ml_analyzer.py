@@ -92,7 +92,57 @@ def analyze_edges():
         report_lines.append(f"Side: {row['side']:<5} | Trades: {row['trades']:<3} | Win Rate: {(row['win_rate']*100):.1f}%")
     report_lines.append("")
 
-    report_str = "\n".join(report_lines)
+    # 4. Edge by Day of Week
+    report_lines.append("📅 4. WIN RATE BY DAY OF WEEK")
+    report_lines.append("-" * 30)
+    day_stats = df.groupby('day_of_week').agg(
+        trades=('is_win', 'count'),
+        win_rate=('is_win', 'mean'),
+        total_pnl=('pnl_dollars', 'sum')
+    ).reset_index()
+    
+    # Sort days in order
+    days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    day_stats['day_of_week'] = pd.Categorical(day_stats['day_of_week'], categories=days_order, ordered=True)
+    day_stats = day_stats.sort_values('day_of_week')
+    
+    for _, row in day_stats.iterrows():
+        if pd.isna(row['trades']):
+            continue
+        report_lines.append(f"Day: {row['day_of_week']:<9} | Trades: {int(row['trades']):<3} | Win Rate: {(row['win_rate']*100):.1f}% | Total PnL: ${row['total_pnl']:.2f}")
+    report_lines.append("")
+
+    # Extract hard rules from warnings
+    ml_rules = []
+    
+    for _, row in regime_stats.iterrows():
+        if row['trades'] >= 5 and row['win_rate'] < 0.40:
+            ml_rules.append(f"⛔ RULE: AVOID trading in {row['regime']} regime. Historical Win Rate is only {(row['win_rate']*100):.1f}%.")
+            
+    for _, row in hour_stats.iterrows():
+        if row['trades'] >= 3 and row['win_rate'] < 0.33:
+            ml_rules.append(f"⛔ RULE: DO NOT ENTER TRADES at {int(row['hour']):02d}:00 UTC. This is a statistical Dead Zone.")
+
+    for _, row in side_stats.iterrows():
+        if row['trades'] >= 5 and row['win_rate'] < 0.35:
+            ml_rules.append(f"⛔ RULE: AVOID {row['side']} trades. Statistical edge is missing ({(row['win_rate']*100):.1f}% WR).")
+
+    # Re-assemble the report with rules at the top
+    final_report = []
+    final_report.append(f"📊 EMY AI — BIG DATA EDGE REPORT (Last {len(df)} Trades)")
+    final_report.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    final_report.append(f"Overall Win Rate: {(df['is_win'].mean() * 100):.1f}%\n")
+    
+    if ml_rules:
+        final_report.append("🚨 **CRITICAL ML EDGE RULES (YOU MUST FOLLOW THESE)** 🚨")
+        final_report.extend(ml_rules)
+        final_report.append("\n" + "="*50 + "\n")
+    else:
+        final_report.append("✅ No critical edge violations detected. Trade normally.\n")
+
+    final_report.extend(report_lines[4:])  # Append the detailed breakdowns below the rules
+
+    report_str = "\n".join(final_report)
 
     # Save to file for human readability
     with open(REPORT_PATH, "w") as f:

@@ -43,9 +43,10 @@ class BotState:
 
     def __init__(self):
         self.is_paused = False
+        self.in_dead_zone = False
         self.last_cycle_time = None
-        self.last_decision = None
-        self.last_indicators = None
+        self.last_decision = {}  # symbol -> decision
+        self.last_indicators = {}  # symbol -> indicator
         self.cycle_count = 0
         self.trades_today = 0
         self.start_time = datetime.now(timezone.utc)
@@ -56,13 +57,13 @@ class BotState:
         self.on_get_positions = None  # Callable to get positions
         self.on_get_balance = None    # Callable to get balance
 
-    def update_cycle(self, decision=None, indicators=None):
+    def update_cycle(self, symbol="XAUUSD", decision=None, indicators=None):
         self.last_cycle_time = datetime.now(timezone.utc)
         self.cycle_count += 1
         if decision:
-            self.last_decision = decision
+            self.last_decision[symbol] = decision
         if indicators:
-            self.last_indicators = indicators
+            self.last_indicators[symbol] = indicators
 
 
 # Global bot state
@@ -111,7 +112,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/pause — Pause auto-trading\n"
         "/resume — Resume trading\n"
         "/reset_risk — Reset streak and circuit breaker\n\n"
-        f"📊 Symbol: `{config.TRADING_SYMBOL}`\n"
+        f"📊 Symbols: `{', '.join(config.TRADING_SYMBOLS)}`\n"
         f"⏱️ Analysis: every `{config.ANALYSIS_INTERVAL_MINUTES}` min\n"
         f"🧪 Mode: `cTrader DEMO`\n"
         f"⏰ Uptime: `{hours}h {mins}m`\n\n"
@@ -139,13 +140,15 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if bot_state.last_cycle_time else "Not yet"
     )
 
-    last_action = "N/A"
-    last_confidence = "N/A"
-    last_reason = "N/A"
+    last_action_str = ""
     if bot_state.last_decision:
-        last_action = bot_state.last_decision.get("action", "N/A")
-        last_confidence = bot_state.last_decision.get("confidence", "N/A")
-        last_reason = bot_state.last_decision.get("reason", "N/A")[:100]
+        for sym, d in bot_state.last_decision.items():
+            act = d.get("action", "N/A")
+            conf = d.get("confidence", "N/A")
+            rsn = d.get("reason", "N/A")[:100]
+            last_action_str += f"*{sym}*: `{act}` ({conf}%)\n_{rsn}_\n\n"
+    else:
+        last_action_str = "N/A\n"
 
     # Cost stats
     try:
@@ -164,9 +167,8 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Trades today: `{bot_state.trades_today}`\n"
         f"Last analysis: `{last_cycle}`\n"
         f"AI cost: `{cost_str}`\n\n"
-        f"*Last Decision:*\n"
-        f"Action: `{last_action}` | Confidence: `{last_confidence}`\n"
-        f"_{last_reason}_"
+        f"*Last Decisions:*\n"
+        f"{last_action_str}"
     )
     await update.message.reply_text(msg, parse_mode="Markdown")
 
@@ -417,35 +419,25 @@ async def cmd_indicators(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_authorized(update):
         return
 
-    ind = bot_state.last_indicators
-    if not ind:
+    inds = bot_state.last_indicators
+    if not inds:
         await update.message.reply_text("📭 No indicator data yet — waiting for first analysis cycle")
         return
 
-    sweep_str = "None"
-    if ind.get("sweep_detected"):
-        sweep_str = f"🚨 {ind.get('sweep_type', 'Unknown')} @ ${ind.get('sweep_level', 0):,.2f}"
+    msg = "📐 *Latest Indicators*\n━━━━━━━━━━━━━━━━━━━━━━\n"
+    for sym, ind in inds.items():
+        sweep_str = "None"
+        if ind.get("sweep_detected"):
+            sweep_str = f"🚨 {ind.get('sweep_type', 'Unknown')} @ ${ind.get('sweep_level', 0):,.2f}"
 
-    msg = (
-        f"📐 *Indicators — {config.TRADING_SYMBOL}*\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"💲 Price: `${ind.get('current_price', 0):,.2f}`\n"
-        f"📈 Trend: `{ind.get('trend', 'N/A')}`\n"
-        f"🏗 Structure: `{ind.get('structure', 'N/A')}`\n\n"
-        f"*EMAs:*\n"
-        f"EMA50: `${ind.get('ema50', 0):,.2f}`\n"
-        f"EMA200: `${ind.get('ema200', 0):,.2f}`\n\n"
-        f"*Sweep Detection:*\n"
-        f"{sweep_str}\n\n"
-        f"*Volatility:*\n"
-        f"ATR(14): `${ind.get('atr', 0):,.2f}`\n"
-        f"RSI(14): `{ind.get('rsi', 'N/A')}`\n"
-        f"Volume: `{ind.get('volume_ratio', 0)}x` avg\n\n"
-        f"*Key Levels:*\n"
-        f"Session H/L: `${ind.get('session_high', 0):,.2f}` / `${ind.get('session_low', 0):,.2f}`\n"
-        f"Swing H/L: `${ind.get('swing_high', 0):,.2f}` / `${ind.get('swing_low', 0):,.2f}`\n"
-        f"Nearest round: `${ind.get('nearest_round', 0):,.0f}`"
-    )
+        msg += (
+            f"*{sym}*\n"
+            f"💲 Price: `${ind.get('current_price', 0):,.2f}` | 📈 Trend: `{ind.get('trend', 'N/A')}`\n"
+            f"🏗 Structure: `{ind.get('structure', 'N/A')}`\n"
+            f"*EMAs*: 50=`${ind.get('ema50', 0):,.2f}` | 200=`${ind.get('ema200', 0):,.2f}`\n"
+            f"*Sweep*: {sweep_str}\n"
+            f"*Vol*: ATR=`${ind.get('atr', 0):,.2f}` | RSI=`{ind.get('rsi', 'N/A')}` | VolRatio=`{ind.get('volume_ratio', 0)}x`\n\n"
+        )
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 
@@ -669,24 +661,23 @@ async def _send_overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status = "⏸️ Paused" if bot_state.is_paused else "🟢 Running"
 
     # Last decision
-    last_action = "None yet"
-    last_reason = ""
+    last_action_str = ""
     if bot_state.last_decision:
-        d = bot_state.last_decision
-        action_emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⏸️"}.get(d.get("action", ""), "❓")
-        last_action = f"{action_emoji} {d.get('action', '?')} ({d.get('confidence', '?')}%)"
-        last_reason = d.get("reason", "")[:150]
+        for sym, d in bot_state.last_decision.items():
+            action_emoji = {"BUY": "🟢", "SELL": "🔴", "HOLD": "⏸️"}.get(d.get("action", ""), "❓")
+            act = f"{action_emoji} {d.get('action', '?')} ({d.get('confidence', '?')}%)"
+            rsn = d.get("reason", "")[:150]
+            last_action_str += f"*{sym}*: {act}\n_{rsn}_\n\n"
+    else:
+        last_action_str = "None yet\n"
 
     msg = (
         f"📊 *Here's what's going on:*\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"System: {status} | Uptime: `{hours}h {mins}m`\n"
         f"Cycles: `{bot_state.cycle_count}` | Trades today: `{bot_state.trades_today}`\n\n"
-        f"*Last Claude decision:*\n{last_action}\n"
+        f"*Last Claude decisions:*\n{last_action_str}"
     )
-
-    if last_reason:
-        msg += f"_{last_reason}_\n"
 
     # Positions
     positions = getattr(bot_state, '_cached_positions', [])
@@ -770,29 +761,31 @@ def start_telegram_bot():
         _bot_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(_bot_loop)
 
-        _app = Application.builder().token(token).post_init(_post_init).build()
+        def _build_app():
+            app = Application.builder().token(token).post_init(_post_init).build()
 
-        # Register all command handlers
-        _app.add_handler(CommandHandler("start", cmd_start))
-        _app.add_handler(CommandHandler("help", cmd_help))
-        _app.add_handler(CommandHandler("status", cmd_status))
-        _app.add_handler(CommandHandler("balance", cmd_balance))
-        _app.add_handler(CommandHandler("positions", cmd_positions))
-        _app.add_handler(CommandHandler("analyze", cmd_analyze))
-        _app.add_handler(CommandHandler("trade", cmd_trade))
-        _app.add_handler(CommandHandler("close", cmd_close))
-        _app.add_handler(CommandHandler("stats", cmd_stats))
-        _app.add_handler(CommandHandler("reports", cmd_reports))
-        _app.add_handler(CommandHandler("journal", cmd_journal))
-        _app.add_handler(CommandHandler("indicators", cmd_indicators))
-        _app.add_handler(CommandHandler("pause", cmd_pause))
-        _app.add_handler(CommandHandler("resume", cmd_resume))
-        _app.add_handler(CommandHandler("reset_risk", cmd_reset_risk))
-        # Legacy aliases
-        _app.add_handler(CommandHandler("position", cmd_positions))
-        _app.add_handler(CommandHandler("decide", cmd_analyze))
+            # Register all command handlers
+            app.add_handler(CommandHandler("start", cmd_start))
+            app.add_handler(CommandHandler("help", cmd_help))
+            app.add_handler(CommandHandler("status", cmd_status))
+            app.add_handler(CommandHandler("balance", cmd_balance))
+            app.add_handler(CommandHandler("positions", cmd_positions))
+            app.add_handler(CommandHandler("analyze", cmd_analyze))
+            app.add_handler(CommandHandler("trade", cmd_trade))
+            app.add_handler(CommandHandler("close", cmd_close))
+            app.add_handler(CommandHandler("stats", cmd_stats))
+            app.add_handler(CommandHandler("reports", cmd_reports))
+            app.add_handler(CommandHandler("journal", cmd_journal))
+            app.add_handler(CommandHandler("indicators", cmd_indicators))
+            app.add_handler(CommandHandler("pause", cmd_pause))
+            app.add_handler(CommandHandler("resume", cmd_resume))
+            app.add_handler(CommandHandler("reset_risk", cmd_reset_risk))
+            # Legacy aliases
+            app.add_handler(CommandHandler("position", cmd_positions))
+            app.add_handler(CommandHandler("decide", cmd_analyze))
 
-        _app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+            app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+            return app
 
         log.info("🤖 Telegram bot started — listening for commands")
 
@@ -800,6 +793,8 @@ def start_telegram_bot():
         # Instead of run_polling() which calls signal handlers,
         # we manually initialize, start polling, and run the loop.
         async def _run():
+            global _app
+            _app = _build_app()
             await _app.initialize()
             # Clear any stale Telegram connections before polling
             try:
@@ -825,10 +820,13 @@ def start_telegram_bot():
                 await _app.stop()
                 await _app.shutdown()
 
-        try:
-            _bot_loop.run_until_complete(_run())
-        except Exception as e:
-            log.error(f"Telegram bot error: {e}")
+        while True:
+            try:
+                _bot_loop.run_until_complete(_run())
+            except Exception as e:
+                log.error(f"Telegram bot error: {type(e).__name__}: {e}. Retrying in 10 seconds...")
+                import time
+                time.sleep(10)
 
     bot_thread = threading.Thread(target=run_bot, daemon=True, name="telegram-bot")
     bot_thread.start()
@@ -836,6 +834,20 @@ def start_telegram_bot():
     log.info("Telegram bot thread started")
     return bot_thread
 
+
+def _sync_fallback_send(message: str):
+    """Synchronous fallback to ensure critical messages like shutdown always send."""
+    try:
+        import requests
+        url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": config.TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        requests.post(url, json=payload, timeout=3)
+    except Exception as e:
+        pass  # Just drop it silently if internet is completely dead
 
 def send_bot_message(message: str):
     """
@@ -853,9 +865,13 @@ def send_bot_message(message: str):
                 parse_mode="Markdown",
             )
         except Exception as e:
-            log.warning(f"Failed to send Telegram message: {e}")
+            # Fallback for shutdown / closed loops
+            _sync_fallback_send(message)
 
     try:
-        asyncio.run_coroutine_threadsafe(_send(), _bot_loop)
+        if _bot_loop.is_closed():
+            _sync_fallback_send(message)
+        else:
+            asyncio.run_coroutine_threadsafe(_send(), _bot_loop)
     except Exception as e:
-        log.warning(f"Failed to schedule Telegram message: {e}")
+        _sync_fallback_send(message)

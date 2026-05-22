@@ -9,6 +9,7 @@ from datetime import datetime, timezone, timedelta
 import pandas as pd
 from utils.logger import log
 import config
+from ai.context_compressor import compress_candle_history
 
 # Trade journal for performance history
 try:
@@ -16,6 +17,13 @@ try:
     HAS_JOURNAL = True
 except ImportError:
     HAS_JOURNAL = False
+
+# AI Memory for short-term decision tracking
+try:
+    from ai.ai_memory import get_memory_prompt
+    HAS_MEMORY = True
+except ImportError:
+    HAS_MEMORY = False
 
 
 def _safe(val, default=0):
@@ -47,12 +55,21 @@ def _get_market_session() -> tuple:
         return "🌙 Off-hours", "B", "OFF"
 
 
-def format_for_claude(candles_15m: pd.DataFrame, indicators: dict,
-                       account: dict, candles_1m: pd.DataFrame = None,
-                       tick_info: dict = None, mtfa_data: dict = None,
-                       market_regime: str = "UNKNOWN", ml_report: str = "",
-                       wakeup_reason: str = None, streak_count: int = 0, daily_pnl: float = 0.0,
-                       symbol: str = "XAUUSD") -> str:
+def format_for_claude(
+    candles_15m: pd.DataFrame, 
+    indicators: dict, 
+    account: dict, 
+    candles_1m: pd.DataFrame = None,
+    tick_info: dict = None,
+    mtfa_data: dict = None,
+    market_regime: str = "UNKNOWN",
+    ml_report: str = "",
+    wakeup_reason: str = "",
+    streak_count: int = 0,
+    daily_pnl: float = 0.0,
+    symbol: str = config.TRADING_SYMBOL,
+    dollar_correlation: str = ""
+) -> tuple[str, str]:
     """
     Build comprehensive market data prompt for Trend + Liquidity Sweep strategy.
 
@@ -65,7 +82,7 @@ def format_for_claude(candles_15m: pd.DataFrame, indicators: dict,
         mtfa_data: Dict mapping timeframe (e.g. 60, 240) to indicator dicts.
 
     Returns:
-        str: Formatted market snapshot string.
+        tuple: (system_additions, user_data) where system_additions contains static memory/journal to be cached, and user_data contains volatile market snapshot.
     """
     try:
         current_price = indicators.get("current_price", 0)
@@ -77,12 +94,26 @@ def format_for_claude(candles_15m: pd.DataFrame, indicators: dict,
         # Market session
         session_name, session_grade, session_code = _get_market_session()
 
-        # Format last 15 candles (15m) — enough context for sweep detection
-        n_candles = min(15, len(candles_15m))
+        # ─── Context Compression (15m Candles) ─────────────────
+        atr_val = indicators.get("atr", 10.0)
+        avg_vol = indicators.get("avg_volume", candles_15m['volume'].mean())
+        
+        # 1. Generate Python Summary
+        compressed_summary = compress_candle_history(candles_15m, atr=atr_val, avg_volume=avg_vol)
+        
+        # 2. Provide 3-candle verification table
+        n_candles = min(3, len(candles_15m))
         last_candles = candles_15m.tail(n_candles)[["timestamp", "open", "high", "low", "close", "volume"]].copy()
         if hasattr(last_candles["timestamp"].iloc[0], 'strftime'):
-            last_candles["timestamp"] = last_candles["timestamp"].dt.strftime("%Y-%m-%d %H:%M")
+            last_candles["timestamp"] = last_candles["timestamp"].dt.strftime("%H:%M")
         candle_table = last_candles.to_string(index=False)
+        
+        candle_section = (
+            f"─── RECENT PRICE ACTION SUMMARY (15m) ───────────────\n"
+            f"{compressed_summary}\n\n"
+            f"─── RAW DATA (Last {n_candles} candles for verification) ───────\n"
+            f"{candle_table}\n"
+        )
 
         # Format 1-minute view (last 5 candles for entry trigger detection)
         short_term_section = ""
@@ -123,6 +154,18 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
         # Key levels section
         round_levels = indicators.get("round_levels", [])
         round_levels_str = ", ".join([f"${r:,.0f}" for r in round_levels]) if round_levels else "N/A"
+        
+        # Action Summary
+        action_guide = """
+You have 7 possible actions:
+1. "HOLD" (Do nothing, keep waiting, or let the current position run)
+2. "BUY" (Enter long, only if no position is open)
+3. "SELL" (Enter short, only if no position is open)
+4. "CLOSE_TRADE" (Exit an open position immediately at market price)
+5. "MOVE_SL_BE" (Move the Stop Loss of an open position to breakeven + fees)
+6. "MOVE_SL" (Trail the Stop Loss of an open position to a specific price target, e.g. behind a new swing low/high. You MUST provide the new price in the 'stop_loss' field. Do NOT move it backwards.)
+7. "PARTIAL_CLOSE" (Close 50% of the position and move SL to BE. Use this at TP1)
+"""
 
         # Open positions — detailed for position management
         positions_str = "None — no open positions"
@@ -164,8 +207,8 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
         journal_section = ""
         if HAS_JOURNAL:
             try:
-                stats = get_stats()
-                recent = get_recent_trades(5)
+                stats = get_stats(symbol)
+                recent = get_recent_trades(5, symbol)
 
                 if stats["total_trades"] > 0:
                     journal_section = (
@@ -196,7 +239,7 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
 
                     # ─── Pattern Analysis — LEARN FROM MISTAKES ───
                     try:
-                        patterns = get_loss_patterns()
+                        patterns = get_loss_patterns(symbol)
                         if patterns:
                             sa = patterns["side_analysis"]
                             journal_section += (
@@ -209,8 +252,9 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
                             if patterns.get('streak', 0) >= 2:
                                 journal_section += (
                                     f"\n🚨🚨 URGENT WARNING: YOU HAVE LOST {patterns['streak']} TRADES IN A ROW! 🚨🚨\n"
-                                    f"Your previous analysis was incorrect. Do NOT take sub-optimal trades.\n"
-                                    f"You MUST perform significantly deeper analysis for the next trade. If in doubt, HOLD.\n"
+                                    f"Your previous analysis was INCORRECT. You must pause and evaluate the MULTI-TIMEFRAME CONTEXT.\n"
+                                    f"Is H1/H4 strongly bullish but M5/M15 bearish? If so, the market is in a PULLBACK, not a reversal.\n"
+                                    f"Do not blindly fight higher timeframe momentum. Re-evaluate your structural analysis.\n"
                                 )
 
                             if patterns.get("lessons"):
@@ -228,10 +272,10 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
                         log.debug(f"Pattern analysis not available: {pe}")
 
                     journal_section += (
-                        "\n⚡ USE THIS DATA: Do NOT repeat losing patterns. "
-                        "If a direction is losing, switch bias. "
-                        "If win rate is below 40%, increase confidence threshold. "
-                        "Only take A-grade setups after a losing streak.\n"
+                        "\n⚡ MTFA GUIDELINE: Do NOT repeat losing patterns. "
+                        "If you are losing, evaluate the higher timeframes (H1, H4). "
+                        "Align your trades with higher timeframe momentum, trading pullbacks on the lower timeframes (M5, M15). "
+                        "Only take A-grade setups with MTFA alignment after a losing streak.\n"
                     )
                 else:
                     journal_section = (
@@ -259,9 +303,9 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
             )
             
             if today['pnl'] < 0:
-                macro_section += "⚠️ WARNING: You are losing money today. Switch to MAXIMUM DEFENSIVE mode. Do not take any B-grade setups. Protect capital.\n"
+                macro_section += "⚠️ NOTE: Slight losses today. Maintain normal trading discipline. Focus on quality setups.\n"
             elif week['pnl'] > 0:
-                macro_section += "✅ SUCCESS: You are highly profitable this week. Protect these weekly gains. Only take A+ sniper setups.\n"
+                macro_section += "✅ Profitable this week. Continue normal trading — ride the momentum.\n"
             
             macro_section += "\n"
         except Exception as e:
@@ -275,8 +319,7 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
             news_section = (
                 "─── 📰 LIVE MACROECONOMIC NEWS ──────────────────\n"
                 f"{news_data}\n"
-                "⚡ NEWS RULE: If High-Impact news is scheduled within the next 2 hours, be extremely cautious or HOLD.\n"
-                "If news just dropped, expect massive liquidity sweeps. Use fundamental context to justify technical moves.\n\n"
+                "⚡ CRITICAL NEWS RULE: If a HIGH IMPACT event for USD is scheduled within the next 2 hours, the market will become extremely volatile. You may still trade, but ONLY if you have absolute conviction. Your required confidence threshold increases to 80% or higher. If the setup is anything less than an A-grade 80% confidence setup, output IGNORE and wait for the news spike to settle.\n\n"
             )
         except Exception as e:
             log.debug(f"Macro news feed not available: {e}")
@@ -305,7 +348,7 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
                     f"  MACD: {_safe(ind.get('macd')):.2f} | "
                     f"RSI: {_safe(ind.get('rsi')):.1f}\n"
                 )
-            mtfa_section += "\n⚡ MTFA RULE: Do NOT trade against the H1/H4 trend unless it's a confirmed massive sweep reversal.\n"
+            mtfa_section += "\n⚡ MTFA RULE: If you trade a counter-trend pullback against the H4 macro trend, the system will automatically cut your lot size and Take Profit by 50% for a quick, safe scalp. Account for this in your strategy.\n"
 
         strategy_text = "Trend + Liquidity Sweep"
         
@@ -316,8 +359,9 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
                 "• MANAGER MODE ACTIVE: You have an open position.\n"
                 "• IGNORE new entry signals. Your ONLY job is to evaluate the existing trade.\n"
                 "• Check for invalidation signals (e.g. price closed beyond key EMA, momentum shifted).\n"
-                "• If structure is broken, output CLOSE_TRADE.\n"
-                "• If structure is valid, output HOLD or PARTIAL_CLOSE.\n"
+                "• If structure is permanently broken and momentum is against you, output CLOSE_TRADE.\n"
+                "• If structure broke, BUT you detect an imminent mean-reversion pullback to a better exit price, output HOLD and explain you are waiting for the pullback to exit.\n"
+                "• If structure is valid, output HOLD, PARTIAL_CLOSE, or MOVE_SL_BE.\n"
             )
         else:
             playbook_rules = (
@@ -406,7 +450,26 @@ Spread:         ${tick_info.get('spread', 0):,.2f}
                 f"═══════════════════════════════════════════════════════\n"
             )
 
-        prompt = f"""
+        # ─── AI Memory: Previous decisions ─────────────────
+        memory_section = ""
+        if HAS_MEMORY:
+            try:
+                memory_section = get_memory_prompt(symbol)
+            except Exception as e:
+                log.debug(f"Memory prompt error: {e}")
+
+        system_additions = f"""
+─── 🚨 YOUR STATISTICAL WEAKNESSES ───
+{ml_report if ml_report else 'No statistical edge report available yet.'}
+⚡ ML CONTEXT: Use the data above as informational context, NOT as a reason to avoid trading. Low win rates may reflect old market conditions or data issues. Focus on the CURRENT price action and setup quality.
+
+{dollar_correlation}
+{macro_section}
+{journal_section}
+{memory_section}
+"""
+        
+        user_data = f"""
 {symbol} MARKET SNAPSHOT — {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}
 Strategy: {strategy_text}
 ═══════════════════════════════════════════════════════
@@ -419,29 +482,21 @@ CURRENT PRICE: ${current_price:,.2f}
 Session: {session_name}
 Grade: {session_grade} {'(Prime entry window)' if session_grade == 'A' else '(Normal trading)'}
 
-─── 🚨 YOUR STATISTICAL WEAKNESSES ───
-{ml_report if ml_report else 'No statistical edge report available yet.'}
-⚡ ML RULE: Review the report above. If the current regime or hour is marked as a DEAD ZONE or you are bleeding money, you MUST be extremely cautious. Do not take B-grade setups in weak environments.
-
-{macro_section}
 {news_section}
 {mtfa_section}
 {trend_section}{key_levels_section}
 {sweep_data}{supp_section}
-─── LAST {n_candles} CANDLES (15m) ─────────────────────────
-{candle_table}
+{candle_section}
 {short_term_section}
 ─── ACCOUNT ─────────────────────────────────────────
 Available Balance: ${account.get('balance', 0):,.2f} USD
 Open Positions:
 {positions_str}
 Max Risk Per Trade: {config.MAX_RISK_PER_TRADE}%
-
-{journal_section}
 """
 
-        log.debug(f"Prompt built: {len(prompt)} characters")
-        return prompt.strip()
+        log.debug(f"Prompt built: {len(user_data) + len(system_additions)} characters total")
+        return system_additions.strip(), user_data.strip()
 
     except Exception as e:
         log.error(f"Failed to build Claude prompt: {e}")

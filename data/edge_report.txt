@@ -1,39 +1,36 @@
-📊 EMY AI — BIG DATA EDGE REPORT (Last 49 Trades)
-Generated: 2026-05-20 08:49:22
-Overall Win Rate: 51.0%
+📊 EMY AI — BIG DATA EDGE REPORT (Last 10 Trades)
+Generated: 2026-05-22 22:53:58
+Overall Win Rate: 40.0%
+
+🚨 **CRITICAL ML EDGE RULES (YOU MUST FOLLOW THESE)** 🚨
+⛔ RULE: AVOID trading in TRANSITIONING regime. Historical Win Rate is only 28.6%.
+
 ==================================================
 
 📈 1. WIN RATE BY MARKET REGIME
 ------------------------------
-Regime: RANGING_CHOPPY  | Trades: 9   | Win Rate: 44.4% | Avg PnL: $50.55
-Regime: TRANSITIONING   | Trades: 3   | Win Rate: 100.0% | Avg PnL: $421.79
-Regime: TRENDING_BEARISH | Trades: 5   | Win Rate: 60.0% | Avg PnL: $607.81
-Regime: UNKNOWN         | Trades: 32  | Win Rate: 46.9% | Avg PnL: $-253.56
+Regime: RANGING_CHOPPY  | Trades: 1   | Win Rate: 0.0% | Avg PnL: $-3.88
+Regime: TRANSITIONING   | Trades: 7   | Win Rate: 28.6% | Avg PnL: $-5.01
+   ⚠️ WARNING: You are bleeding money in TRANSITIONING. Consider blocking this regime.
+Regime: TRENDING_BULLISH | Trades: 2   | Win Rate: 100.0% | Avg PnL: $2.83
 
 ⏰ 2. WIN RATE BY HOUR OF DAY (UTC)
 ------------------------------
-Hour 00:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-1.20
-Hour 01:00 UTC | Trades: 3.0 | Win Rate: 66.7% | Total PnL: $748.89
-Hour 02:00 UTC | Trades: 2.0 | Win Rate: 50.0% | Total PnL: $-177.30
-Hour 05:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-162.30
-Hour 06:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-231.00
-Hour 07:00 UTC | Trades: 5.0 | Win Rate: 80.0% | Total PnL: $2807.23
-Hour 08:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-867.18
-Hour 09:00 UTC | Trades: 4.0 | Win Rate: 75.0% | Total PnL: $63.83
-Hour 10:00 UTC | Trades: 2.0 | Win Rate: 50.0% | Total PnL: $-67.92
-Hour 11:00 UTC | Trades: 2.0 | Win Rate: 50.0% | Total PnL: $824.35
-Hour 12:00 UTC | Trades: 3.0 | Win Rate: 33.3% | Total PnL: $-407.85
-Hour 13:00 UTC | Trades: 3.0 | Win Rate: 33.3% | Total PnL: $1682.36
-Hour 14:00 UTC | Trades: 4.0 | Win Rate: 50.0% | Total PnL: $-651.19
-Hour 15:00 UTC | Trades: 5.0 | Win Rate: 20.0% | Total PnL: $-14943.72
-   🛑 DEAD ZONE DETECTED: Avoid trading at 15:00 UTC.
-Hour 16:00 UTC | Trades: 5.0 | Win Rate: 80.0% | Total PnL: $6445.45
-Hour 17:00 UTC | Trades: 3.0 | Win Rate: 66.7% | Total PnL: $1258.90
-Hour 18:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-207.45
-Hour 19:00 UTC | Trades: 2.0 | Win Rate: 100.0% | Total PnL: $585.00
-Hour 23:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-53.38
+Hour 02:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-3.88
+Hour 10:00 UTC | Trades: 2.0 | Win Rate: 0.0% | Total PnL: $0.00
+Hour 15:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-24.93
+Hour 16:00 UTC | Trades: 2.0 | Win Rate: 100.0% | Total PnL: $5.66
+Hour 17:00 UTC | Trades: 1.0 | Win Rate: 0.0% | Total PnL: $-28.14
+Hour 18:00 UTC | Trades: 1.0 | Win Rate: 100.0% | Total PnL: $0.43
+Hour 19:00 UTC | Trades: 2.0 | Win Rate: 50.0% | Total PnL: $17.57
 
 🔄 3. WIN RATE BY DIRECTION (BUY vs SELL)
 ------------------------------
-Side: BUY   | Trades: 15  | Win Rate: 40.0%
-Side: SELL  | Trades: 34  | Win Rate: 55.9%
+Side: BUY   | Trades: 5   | Win Rate: 40.0%
+Side: SELL  | Trades: 5   | Win Rate: 40.0%
+
+📅 4. WIN RATE BY DAY OF WEEK
+------------------------------
+Day: Wednesday | Trades: 2   | Win Rate: 100.0% | Total PnL: $5.66
+Day: Thursday  | Trades: 6   | Win Rate: 33.3% | Total PnL: $-38.95
+Day: Friday    | Trades: 2   | Win Rate: 0.0% | Total PnL: $0.00

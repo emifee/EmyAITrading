@@ -1,0 +1,596 @@
+{
+  "memory": {
+    "XAUUSD": [
+      {
+        "timestamp": 1779445829.1732721,
+        "action": "PARTIAL_CLOSE",
+        "confidence": 65,
+        "reason": "At VWAP support with doji and bullish MACD histogram divergence \u2014 momentum is stalling. Partial close at 50% profit locks gains; remaining half rides to TP $4,517.75 with SL moved to breakeven ($4,535.97) to eliminate risk.",
+        "entry_price": 4535.97,
+        "stop_loss": 4547.86,
+        "take_profit": 4517.75,
+        "trend_bias": "BEARISH",
+        "sweep_detected": false,
+        "key_level": 4524.94,
+        "current_price": 4525.215
+      },
+      {
+        "timestamp": 1779446123.874812,
+        "action": "HOLD",
+        "confidence": 65,
+        "reason": "Position is inches from TP at $4,517.75 with strong bearish momentum continuing. Zero reversal signals. Hold and let the trade complete.",
+        "entry_price": 4535.97,
+        "stop_loss": 4527.86,
+        "take_profit": 4517.75,
+        "trend_bias": "BEARISH",
+        "sweep_detected": false,
+        "key_level": 4517.75,
+        "current_price": 4518.695
+      },
+      {
+        "timestamp": 1779446373.4486358,
+        "action": "HOLD",
+        "confidence": 35,
+        "reason": "TP was hit, trade is complete. No open position. Price is now at session lows with dead volume (0.36x) \u2014 no clean re-entry setup. Waiting for either a sweep of $4,514.74 session low with rejection, or a pullback to VWAP $4,524.89 for a short re-entry.",
+        "entry_price": 4518.41,
+        "stop_loss": 4525.5,
+        "take_profit": 4510.0,
+        "trend_bias": "BEARISH",
+        "sweep_detected": false,
+        "key_level": 4517.75,
+        "current_price": 4517.674999999999
+      },
+      {
+        "timestamp": 1779446464.026434,
+        "action": "HOLD",
+        "confidence": 35,
+        "reason": "Price is grinding at session low $4,514.86 on 0.01x volume \u2014 completely dead tape. A doji on near-zero volume after a strong bearish candle is not an entry signal. Waiting for either a sweep of $4,512.93 BB Lower with rejection, OR volume returning above 0.5x with a bullish engulfing.",
+        "entry_price": 4515.65,
+        "stop_loss": 4509.0,
+        "take_profit": 4525.14,
+        "trend_bias": "BEARISH",
+        "sweep_detected": false,
+        "key_level": 4514.86,
+        "current_price": 4515.655
+      },
+      {
+        "timestamp": 1779446710.837573,
+        "action": "BUY",
+        "confidence": 62,
+        "reason": "Price swept session low $4,512.41 AND BB Lower $4,512.23 simultaneously \u2014 dual confluence liquidity sweep triggered my pre-set wakeup. RSI 33.8 oversold, MACD histogram near zero (-0.05) showing bearish exhaustion. Entering BUY per pre-planned setup with SL below swing low $4,507. Note: H4 is bearish so system applies MTFA 50% TP/size reduction automatically.",
+        "entry_price": 4512.55,
+        "stop_loss": 4507.0,
+        "take_profit": 4525.1,
+        "trend_bias": "BULLISH",
+        "sweep_detected": true,
+        "key_level": 4512.23,
+        "current_price": 4512.535
+      }
+    ],
+    "EURUSD": [
+      {
+        "timestamp": 1779438576.275878,
+        "action": "HOLD",
+        "confidence": 30,
+        "reason": "Data feed is severely truncated \u2014 ATR $0.00, BB flat, Fibs $0.00, volume 0.02x avg (near-zero). Cannot calculate precise SL/TP. M15 shows HH/HL bullish structure but all price levels are compressed to $1.16 with no meaningful separation. Waiting for data to normalize before executing.",
+        "entry_price": 1.16085,
+        "stop_loss": 1.1595,
+        "take_profit": 1.1622,
+        "trend_bias": "NEUTRAL",
+        "sweep_detected": false,
+        "key_level": 1.16,
+        "current_price": 1.160995
+      },
+      {
+        "timestamp": 1779451847.68457,
+        "action": "HOLD",
+        "confidence": 28,
+        "reason": "Bearish sweep detected at 1.16000 with upper wick rejection candle (-2) BUT no engulfing confirmation yet, volume on last candle is near-zero (4 contracts), data feed severely truncated (ATR=0, BB flat), and TRANSITIONING regime has only 28.6% historical win rate. NY open in 49 min adds volatility risk. Waiting for engulfing close below 1.15954 with volume surge before pulling the trigger.",
+        "entry_price": 1.15954,
+        "stop_loss": 1.16025,
+        "take_profit": 1.1588,
+        "trend_bias": "NEUTRAL",
+        "sweep_detected": true,
+        "key_level": 1.16,
+        "current_price": 1.1595550000000001
+      },
+      {
+        "timestamp": 1779451966.1661508,
+        "action": "HOLD",
+        "confidence": 22,
+        "reason": "Wakeup condition was INVALIDATION \u2014 my memo stated 'if price breaks back above 1.16022, thesis is invalidated.' Price closed 1.16013 with a 1-min spike to 1.16034. Bearish short thesis is DEAD. No new setup: all EMAs/BB/Fib data severely truncated, volume 0.06x avg, TRANSITIONING regime (28.6% WR), NY open in 47 min. Waiting for clean data and fresh structure post-NY open.",
+        "entry_price": 1.16013,
+        "stop_loss": 1.1593,
+        "take_profit": 1.161,
+        "trend_bias": "NEUTRAL",
+        "sweep_detected": true,
+        "key_level": 1.16,
+        "current_price": 1.1602700000000001
+      },
+      {
+        "timestamp": 1779454120.9572978,
+        "action": "HOLD",
+        "confidence": 20,
+        "reason": "Data feed is severely compressed \u2014 ATR $0.00, BB flat, all levels collapsed to 1.16, volume 0.01x avg. Cannot identify valid SL/TP or structure. NY open in 11 minutes with FOMC minutes still in scope. TRANSITIONING regime has 28.6% WR historically. Waiting for NY open volatility to establish real range and direction before entering.",
+        "entry_price": 1.16,
+        "stop_loss": 1.1585,
+        "take_profit": 1.162,
+        "trend_bias": "NEUTRAL",
+        "sweep_detected": false,
+        "key_level": 1.16,
+        "current_price": 1.1601949999999999
+      },
+      {
+        "timestamp": 1779455407.7210639,
+        "action": "HOLD",
+        "confidence": 20,
+        "reason": "Wake trigger hit (price reached 1.1613) but data feed remains critically broken \u2014 ATR $0.00, all EMAs/BB/VWAP collapsed to 1.16, volume only 0.35x avg. TRANSITIONING regime with 28.6% historical WR. M5 RSI at 71.9 (overbought). Cannot calculate valid SL/TP for a scalp \u2014 DECLINING this setup entirely per NO GOALPOST MOVING rule.",
+        "entry_price": 1.161,
+        "stop_loss": 1.1595,
+        "take_profit": 1.163,
+        "trend_bias": "NEUTRAL",
+        "sweep_detected": false,
+        "key_level": 1.16142,
+        "current_price": 1.1613799999999999
+      }
+    ],
+    "BTCUSD": [
+      {
+        "timestamp": 1779351180.438734,
+        "action": "SELL",
+        "confidence": 68,
+        "reason": "Massive rejection wick at session high 78,132 on ultra-low volume (0.42x avg, only 815 volume) \u2014 classic liquidity sweep / false breakout. Price closed back at 78,002, well below the wick. H4 macro remains BEARISH (price below both H4 EMAs at 78,267/78,290). M1 momentum falling -$56 in last 5 mins. Philly Fed at 12:30 UTC could cause volatility \u2014 SL above 78,160 protects against spike. TP1 = VWAP 77,709, TP2 = session low 77,432.",
+        "entry_price": 78009.62,
+        "stop_loss": 78160.0,
+        "take_profit": 77709.22,
+        "trend_bias": "BEARISH",
+        "sweep_detected": true,
+        "key_level": 78132.54,
+        "current_price": 78009.62
+      },
+      {
+        "timestamp": 1779352195.042853,
+        "action": "SELL",
+        "confidence": 62,
+        "reason": "H4 macro remains BEARISH (price below 78,267/78,289 EMAs, MACD -147). The 08:00 candle swept the session high at 78,126 (above BB Upper 78,111) and was rejected \u2014 a confirmed liquidity sweep. M5 shows LH/LL bearish structure. Current price 77,990 is a re-entry near the failed breakout zone. SL above sweep wick at 78,165. Note: Philly Fed at 12:30 UTC may cause volatility \u2014 this is a London session scalp targeting VWAP at 77,734. Counter-trend vs H1/M15 EMAs so system will apply 50% TP reduction per MTFA rules.",
+        "entry_price": 77990.83,
+        "stop_loss": 78165.0,
+        "take_profit": 77734.0,
+        "trend_bias": "BEARISH",
+        "sweep_detected": true,
+        "key_level": 78126.54,
+        "current_price": 77990.83
+      },
+      {
+        "timestamp": 1779352569.646991,
+        "action": "HOLD",
+        "confidence": 68,
+        "reason": "Short position working as expected after session high sweep at 78,126. Price declining toward TP 77,777 (VWAP area). SL already near breakeven. Bearish 1-min momentum supports continuation. Philly Fed at 12:30 UTC could cause volatility \u2014 if position is still open by then, consider tightening SL.",
+        "entry_price": 78014.31,
+        "stop_loss": 78013.31,
+        "take_profit": 77777.49,
+        "trend_bias": "BEARISH",
+        "sweep_detected": false,
+        "key_level": 77777.49,
+        "current_price": 77898.56
+      },
+      {
+        "timestamp": 1779352872.888742,
+        "action": "HOLD",
+        "confidence": 68,
+        "reason": "HOLD \u2014 Short from 78,014 is tracking perfectly toward TP 77,777 (~80pts away). H4 macro bearish thesis intact with price below both H4 EMAs. No reversal signals detected. Philly Fed at 12:30 UTC is a volatility event but we expect to hit TP well before then.",
+        "entry_price": 78014.31,
+        "stop_loss": 77976.17,
+        "take_profit": 77777.49,
+        "trend_bias": "BEARISH",
+        "sweep_detected": false,
+        "key_level": 77777.49,
+        "current_price": 77857.41
+      },
+      {
+        "timestamp": 1779353157.5805929,
+        "action": "HOLD",
+        "confidence": 68,
+        "reason": "Short from 78,014 tracking perfectly with only 56pts to TP. SL at near-BE means zero risk on the trade. H4 bearish structure intact, no reversal signals detected. Philly Fed at 12:30 UTC noted but SL protection means exposure is minimal \u2014 let the trade reach TP naturally.",
+        "entry_price": 78014.31,
+        "stop_loss": 78013.31,
+        "take_profit": 77777.49,
+        "trend_bias": "BEARISH",
+        "sweep_detected": false,
+        "key_level": 77777.49,
+        "current_price": 77832.04
+      }
+    ],
+    "USDJPY": [
+      {
+        "timestamp": 1779388475.2362309,
+        "action": "HOLD",
+        "confidence": 58,
+        "reason": "BUY at 158.90 is consolidating above entry with dead volume (0.07x) \u2014 no reversal signals present. M15 structure bullish (EMA50>200), RSI oversold at 36.87, 1-min momentum rising. Holding for move toward 159.15 TP. FOMC minutes already dropped (05-20) so no fresh news risk.",
+        "entry_price": 158.9,
+        "stop_loss": 158.82,
+        "take_profit": 159.15,
+        "trend_bias": "BULLISH",
+        "sweep_detected": false,
+        "key_level": 158.82,
+        "current_price": 158.93849999999998
+      },
+      {
+        "timestamp": 1779389364.5244281,
+        "action": "HOLD",
+        "confidence": 58,
+        "reason": "BUY at 158.90 remains fully valid. Session low swept at 158.82, price bounced and is consolidating above entry on dead volume. M15 structure bullish, RSI still in oversold recovery territory at 36.87. Watching for 158.98 to trigger MOVE_SL_BE per pre-defined memo rules.",
+        "entry_price": 158.9,
+        "stop_loss": 158.82,
+        "take_profit": 159.15,
+        "trend_bias": "BULLISH",
+        "sweep_detected": false,
+        "key_level": 158.82,
+        "current_price": 158.93849999999998
+      },
+      {
+        "timestamp": 1779443575.0233028,
+        "action": "HOLD",
+        "confidence": 35,
+        "reason": "Gemini flagged bullish breakout but current data contradicts it: volume is 0.33x (dead), last 3 M15 candles are bearish, 1m momentum is falling, and no sweep detected. Price is stalling AT the 159.15 triple resistance (BB Upper + Session High + Swing High) \u2014 not breaking through it. Entering a breakout on 0.33x volume into resistance is exactly the losing pattern from last trade. Waiting for either: (A) clean pullback to VWAP/159.07 support + rejection candle, or (B) confirmed breakout ABOVE 159.15 with volume > 1.5x.",
+        "entry_price": 159.09,
+        "stop_loss": 159.03,
+        "take_profit": 159.21,
+        "trend_bias": "BULLISH",
+        "sweep_detected": false,
+        "key_level": 159.15,
+        "current_price": 159.118
+      },
+      {
+        "timestamp": 1779465495.651111,
+        "action": "HOLD",
+        "confidence": 40,
+        "reason": "Price at session high 159.23 with a doji on 0.01x volume \u2014 no conviction for a breakout continuation. TRANSITIONING regime (28.6% WR historically) demands extra confirmation. Waiting for either a pullback to VWAP/EMA50 at 159.11 with bullish rejection, or a volume-confirmed breakout above 159.23.",
+        "entry_price": 159.11,
+        "stop_loss": 158.99,
+        "take_profit": 159.28,
+        "trend_bias": "BULLISH",
+        "sweep_detected": false,
+        "key_level": 159.23,
+        "current_price": 159.2255
+      },
+      {
+        "timestamp": 1779466168.1392572,
+        "action": "HOLD",
+        "confidence": 35,
+        "reason": "Price is coiling at session high 159.23 / BB Upper on 0.02x volume \u2014 zero conviction for breakout. Last SELL fade at this exact level was catastrophic. TRANSITIONING regime. Need volume-confirmed breakout above 159.23 OR a pullback to VWAP 159.11 with bullish rejection before entering.",
+        "entry_price": 159.11,
+        "stop_loss": 158.99,
+        "take_profit": 159.28,
+        "trend_bias": "BULLISH",
+        "sweep_detected": false,
+        "key_level": 159.23,
+        "current_price": 159.2235
+      }
+    ]
+  },
+  "tracking_setups": {},
+  "entry_theses": {
+    "XAUUSD": {
+      "thesis": "Price swept session low $4,512.41 AND BB Lower $4,512.23 simultaneously \u2014 dual confluence liquidity sweep triggered my pre-set wakeup. RSI 33.8 oversold, MACD histogram near zero (-0.05) showing bearish exhaustion. Entering BUY per pre-planned setup with SL below swing low $4,507. Note: H4 is bearish so system applies MTFA 50% TP/size reduction automatically.",
+      "action": "BUY",
+      "confidence": 62,
+      "entry_price": 4512.55,
+      "stop_loss": 4507.0,
+      "take_profit": 4525.1,
+      "trend_bias": "BULLISH",
+      "sweep_detected": true,
+      "entered_at": 1779446710.8378408,
+      "price_at_entry": 4512.535
+    }
+  },
+  "recent_losses": {
+    "XAUUSD": [
+      {
+        "timestamp": 1779331479.735739,
+        "action": "BUY",
+        "entry_price": 0,
+        "exit_price": 4537.17,
+        "stop_loss": 2340.0,
+        "take_profit": 2360.0,
+        "pnl": -3.88,
+        "exit_reason": "Claude: Closing BUY position early. Three consecutive strong bearish M15 candles have formed against the position (4556\u21924551\u21924540\u21924536). M15 structure is confirmed LH/LL (bearish), price is below VWAP ($4,542.04), MACD histogram is negative (-1.81), and RSI is at 43.42 trending lower. The original entry had no real technical basis (test trade). 2+ reversal signals are active. Session low at $4,534.22 is very close \u2014 a break would accelerate losses toward the SL at $4,526.75. Closing now at ~$4,536.97 limits the loss to approximately -$2.48 rather than risking the full -$12.56 to SL. M5 RSI at 34.1 suggests a micro bounce is possible but insufficient reason to hold against a clearly broken structure.",
+        "entry_thesis": "Testing strategy evolution memory",
+        "confidence_at_entry": 85,
+        "trend_bias": "NEUTRAL",
+        "sweep_at_entry": false
+      },
+      {
+        "timestamp": 1779349473.5047429,
+        "action": "BUY",
+        "entry_price": 4515.56,
+        "exit_price": 1.160365,
+        "stop_loss": 4510.5,
+        "take_profit": 4522.92,
+        "pnl": -4514.4,
+        "exit_reason": "Claude: Closing for three reasons: (1) The R:R on this position is inverted \u2014 risk is $13.90 vs reward of only $6.35, which is a 1:0.46 R:R, violating our minimum 1:1.5 rule. (2) The most recent significant candle was a strong BEARISH body on SURGING volume (1.7x avg), indicating selling pressure against the long. (3) London Open is 15 minutes away \u2014 volatility spikes at London Open frequently hunt stops, and with an inverted R:R our stop is far more likely to be hit than our TP. Closing now while +$0.49 in profit is the disciplined decision.",
+        "entry_thesis": "Session low sweep at $4,512.04 triggered the WAKEUP \u2014 price wicked below the level and bounced, with current M15 EMA50 ($4,531) > EMA200 ($4,520) providing bullish structure bias and RSI at 35.88 approaching oversold. SL placed at $4,510.50 below the sweep wick. TP1 at Fib 0.382 ($4,522.92, ~1.45R), TP2 at Fib 0.50 ($4,526.28, ~2.1R). Key risk: London session opens in ~18 minutes \u2014 expect aggressive wicks that could test the SL; volume remains very low (0.41x avg) so confirmation is weak. Philly Fed at 12:30pm UTC is not an immediate factor.",
+        "confidence_at_entry": 58,
+        "trend_bias": "BULLISH",
+        "sweep_at_entry": true
+      }
+    ],
+    "USDJPY": [
+      {
+        "timestamp": 1779367252.299506,
+        "action": "SELL",
+        "entry_price": 159.11,
+        "exit_price": 4513.335,
+        "stop_loss": 159.17,
+        "take_profit": 158.97,
+        "pnl": -91438725.0,
+        "exit_reason": "SL/TP auto-hit",
+        "entry_thesis": "Counter-trend SELL fade at triple resistance confluence: BB Upper ($159.11), Session High ($159.12), and Swing High ($159.12) \u2014 all converging at current price. M5 RSI is overbought at 74.8 and volume is only 0.74x average, suggesting a weak breakout. Targeting VWAP ($158.97) as TP1. SL tight above the resistance cluster at $159.17. Philly Fed at 12:30 UTC \u2014 aware of news risk. Counter-trend vs H4 bullish structure so system will apply 50% lot reduction.",
+        "confidence_at_entry": 55,
+        "trend_bias": "BEARISH",
+        "sweep_at_entry": false
+      }
+    ],
+    "EURUSD": [
+      {
+        "timestamp": 1779373026.083182,
+        "action": "?",
+        "entry_price": 0,
+        "exit_price": 4502.66,
+        "stop_loss": 0,
+        "take_profit": 0,
+        "pnl": -22507493.0,
+        "exit_reason": "SL/TP auto-hit",
+        "entry_thesis": "No thesis recorded",
+        "confidence_at_entry": 0,
+        "trend_bias": "?",
+        "sweep_at_entry": false
+      },
+      {
+        "timestamp": 1779374824.6841118,
+        "action": "SELL",
+        "entry_price": 1.15893,
+        "exit_price": 4506.77,
+        "stop_loss": 1.1597,
+        "take_profit": 1.1575,
+        "pnl": -36044888.56,
+        "exit_reason": "SL/TP auto-hit",
+        "entry_thesis": "H4 LH/LL bearish structure intact. The 14:30 M15 candle formed a textbook upper-wick rejection at the 1.15946 resistance zone (former sweep low, tested 12x today), with 1-min momentum now falling. Volume is low at 0.26x avg \u2014 noted concern \u2014 but structural rejection at the exact key level I've been tracking for 42 minutes justifies execution. SL above wick high at 1.15970, TP1 at 1.15750 (R:R 1.86:1), TP2 at 1.15600 (R:R 3.8:1).",
+        "confidence_at_entry": 57,
+        "trend_bias": "BEARISH",
+        "sweep_at_entry": false
+      }
+    ]
+  },
+  "journal": {
+    "USDJPY": {
+      "memo": "H4 is bullish (HH/HL structure). DO NOT short at 159.23 \u2014 last trade there was a disaster. Only two valid scenarios: (A) BUY breakout above 159.23 with volume > 1.5x, or (B) BUY pullback to VWAP 159.11-159.09 with bullish rejection candle. SL for scenario A = 159.11, TP = 159.40. SL for scenario B = 158.99, TP = 159.23. TRANSITIONING regime \u2014 require extra confirmation before firing.",
+      "timestamp": 1779466168.139267,
+      "h4_trend": "BULLISH"
+    }
+  },
+  "rule_violations": {},
+  "level_history": {
+    "XAUUSD": [
+      {
+        "level": 4515.56,
+        "action": "BUY",
+        "won": false,
+        "pnl": -4514.4,
+        "timestamp": 1779349473.504735
+      },
+      {
+        "level": 4546.24,
+        "action": "SELL",
+        "won": true,
+        "pnl": 0.43,
+        "timestamp": 1779390237.3931782
+      }
+    ],
+    "BTCUSD": [
+      {
+        "level": 77990.83,
+        "action": "SELL",
+        "won": true,
+        "pnl": 1469.2,
+        "timestamp": 1779353351.2564712
+      }
+    ],
+    "USDJPY": [
+      {
+        "level": 159.11,
+        "action": "SELL",
+        "won": false,
+        "pnl": -91438725.0,
+        "timestamp": 1779367252.29886
+      }
+    ],
+    "EURUSD": [
+      {
+        "level": 1.16,
+        "action": "BUY",
+        "won": false,
+        "pnl": -473895.3,
+        "timestamp": 1779371683.110181
+      },
+      {
+        "level": 1.16,
+        "action": "SELL",
+        "won": false,
+        "pnl": -36044888.56,
+        "timestamp": 1779374824.6837618
+      }
+    ]
+  },
+  "regime_timeline": {
+    "XAUUSD": [
+      {
+        "regime": "TRANSITIONING",
+        "timestamp": 1779434322.926631
+      },
+      {
+        "regime": "TRENDING_BULLISH",
+        "timestamp": 1779436891.985259
+      },
+      {
+        "regime": "TRANSITIONING",
+        "timestamp": 1779437009.379894
+      },
+      {
+        "regime": "TRENDING_BEARISH",
+        "timestamp": 1779441397.0385122
+      },
+      {
+        "regime": "TRENDING_BULLISH",
+        "timestamp": 1779442653.837423
+      },
+      {
+        "regime": "TRANSITIONING",
+        "timestamp": 1779443597.376916
+      },
+      {
+        "regime": "TRANSITIONING",
+        "timestamp": 1779445829.176477
+      }
+    ],
+    "EURUSD": [
+      {
+        "regime": "TRANSITIONING",
+        "timestamp": 1779438100.922266
+      },
+      {
+        "regime": "TRANSITIONING",
+        "timestamp": 1779451847.687406
+      },
+      {
+        "regime": "TRANSITIONING",
+        "timestamp": 1779454120.960028
+      }
+    ],
+    "BTCUSD": [],
+    "USDJPY": [
+      {
+        "regime": "TRANSITIONING",
+        "timestamp": 1779443575.030038
+      },
+      {
+        "regime": "TRANSITIONING",
+        "timestamp": 1779465495.653909
+      }
+    ]
+  },
+  "tested_levels": {
+    "XAUUSD": {
+      "4535.00": {
+        "level": 4535.84,
+        "times_tested": 7,
+        "times_rejected": 0,
+        "last_tested": 1779444586.443847,
+        "last_action": "SELL"
+      },
+      "4525.00": {
+        "level": 4524.94,
+        "times_tested": 9,
+        "times_rejected": 0,
+        "last_tested": 1779445829.1737542,
+        "last_action": "PARTIAL_CLOSE"
+      },
+      "4545.00": {
+        "level": 4546.38,
+        "times_tested": 2,
+        "times_rejected": 0,
+        "last_tested": 1779384642.230297,
+        "last_action": "HOLD"
+      },
+      "4520.00": {
+        "level": 4517.75,
+        "times_tested": 13,
+        "times_rejected": 0,
+        "last_tested": 1779446373.448887,
+        "last_action": "HOLD"
+      },
+      "4505.00": {
+        "level": 4507.0,
+        "times_tested": 11,
+        "times_rejected": 0,
+        "last_tested": 1779434322.9226408,
+        "last_action": "HOLD"
+      },
+      "4530.00": {
+        "level": 4527.51,
+        "times_tested": 3,
+        "times_rejected": 0,
+        "last_tested": 1779437462.1551192,
+        "last_action": "HOLD"
+      },
+      "4550.00": {
+        "level": 4549.06,
+        "times_tested": 2,
+        "times_rejected": 0,
+        "last_tested": 1779385751.025865,
+        "last_action": "HOLD"
+      },
+      "4560.00": {
+        "level": 4559.3,
+        "times_tested": 7,
+        "times_rejected": 0,
+        "last_tested": 1779391014.576586,
+        "last_action": "SELL"
+      },
+      "4555.00": {
+        "level": 4553.88,
+        "times_tested": 4,
+        "times_rejected": 0,
+        "last_tested": 1779392919.406394,
+        "last_action": "HOLD"
+      },
+      "4515.00": {
+        "level": 4514.86,
+        "times_tested": 3,
+        "times_rejected": 0,
+        "last_tested": 1779446464.026747,
+        "last_action": "HOLD"
+      },
+      "4510.00": {
+        "level": 4512.23,
+        "times_tested": 1,
+        "times_rejected": 0,
+        "last_tested": 1779446710.837837,
+        "last_action": "BUY"
+      }
+    },
+    "EURUSD": {
+      "0.00": {
+        "level": 1.16,
+        "times_tested": 21,
+        "times_rejected": 2,
+        "last_tested": 1779455407.721211,
+        "last_action": "HOLD"
+      }
+    },
+    "BTCUSD": {},
+    "USDJPY": {
+      "160.00": {
+        "level": 159.23,
+        "times_tested": 27,
+        "times_rejected": 1,
+        "last_tested": 1779466168.139462,
+        "last_action": "HOLD"
+      }
+    }
+  },
+  "broker_memory": {},
+  "historical_drawdowns": {},
+  "wake_triggers": {
+    "USDJPY": {
+      "wake_above": 159.24,
+      "wake_below": 159.09,
+      "lookout_instructions": "Wait for either: (A) Price breaks ABOVE 159.23 with M15 volume ratio > 1.5x AND a bullish close candle \u2014 wake me to BUY, OR (B) Price pulls back DOWN to 159.09-159.11 VWAP zone AND prints a bullish rejection wick or engulfing candle with volume > 0.8x \u2014 wake me to BUY the bounce, OR (C) Price drops BELOW 159.09 with a strong bearish candle (cancel bullish thesis entirely \u2014 wake me to reassess).",
+      "reason": "Price is coiling at session high 159.23 / BB Upper on 0.02x volume \u2014 zero conviction for breakout. Last SELL fade at this exact level was catastrophic. TRANSITIONING regime. Need volume-confirmed brea",
+      "action": "HOLD",
+      "context": "entry_tracking",
+      "set_at": 1779466168.139603
+    }
+  },
+  "saved_at": 1779466168.139734
+}

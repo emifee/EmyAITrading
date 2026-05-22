@@ -58,6 +58,7 @@ def parse_raw_response(raw: str) -> dict:
         decision.setdefault("sweep_detected", False)
         decision.setdefault("key_level", 0.0)
         decision.setdefault("session_grade", "C")
+        decision.setdefault("memo_to_self", "")
 
         log.debug(f"Parsed Claude response: {decision}")
         return decision
@@ -136,7 +137,7 @@ def validate_decision(decision: dict, has_position: bool = False, market_regime:
                 return False
 
     # Validate action
-    valid_actions = ["BUY", "SELL", "HOLD", "CLOSE_TRADE", "MOVE_SL_BE", "PARTIAL_CLOSE"]
+    valid_actions = ["BUY", "SELL", "HOLD", "CLOSE_TRADE", "MOVE_SL_BE", "MOVE_SL", "PARTIAL_CLOSE"]
     if decision["action"] not in valid_actions:
         log.warning(f"Invalid action from Claude: '{decision['action']}'")
         return False
@@ -193,7 +194,7 @@ def validate_decision(decision: dict, has_position: bool = False, market_regime:
             return True
 
     # Position management actions — validate and return
-    if decision["action"] in ["CLOSE_TRADE", "MOVE_SL_BE", "PARTIAL_CLOSE"]:
+    if decision["action"] in ["CLOSE_TRADE", "MOVE_SL_BE", "MOVE_SL", "PARTIAL_CLOSE"]:
         reason = decision.get('position_action_reason', decision.get('reason', 'N/A'))
         log.info(f"Claude says {decision['action']} — reason: {reason}")
         return True
@@ -215,7 +216,13 @@ def validate_decision(decision: dict, has_position: bool = False, market_regime:
             f"failed strict validation — forcing HOLD"
         )
         decision["action"] = "HOLD"
-        decision["reason"] = f"[Python Block: Strict Confidence Failed] {decision.get('reason', '')}"
+        reason_msg = f"[Python Block: Strict Confidence Failed] {decision.get('reason', '')}"
+        decision["reason"] = reason_msg
+        try:
+            from ai.ai_memory import record_violation
+            record_violation(config.TRADING_SYMBOL, "Confidence too low to execute.")
+        except Exception:
+            pass
         return True
 
     # Validate numeric fields
@@ -234,6 +241,11 @@ def validate_decision(decision: dict, has_position: bool = False, market_regime:
 
     if risk == 0:
         log.warning("Stop loss equals entry price — invalid")
+        try:
+            from ai.ai_memory import record_violation
+            record_violation(config.TRADING_SYMBOL, "Stop loss equals entry price.")
+        except Exception:
+            pass
         return False
 
     rr_ratio = reward / risk
@@ -246,7 +258,13 @@ def validate_decision(decision: dict, has_position: bool = False, market_regime:
             f"of {min_rr_floor}:1 — forcing HOLD"
         )
         decision["action"] = "HOLD"
-        decision["reason"] = f"[Python Block: R:R {rr_ratio:.1f}:1 is below {min_rr_floor}:1 minimum floor] {decision.get('reason', '')}"
+        reason_msg = f"[Python Block: R:R {rr_ratio:.1f}:1 is below {min_rr_floor}:1 minimum floor] {decision.get('reason', '')}"
+        decision["reason"] = reason_msg
+        try:
+            from ai.ai_memory import record_violation
+            record_violation(config.TRADING_SYMBOL, f"R:R ratio {rr_ratio:.1f}:1 is below {min_rr_floor}:1 floor.")
+        except Exception:
+            pass
         return True
 
     # ─── Option A: Dynamic Confidence-Based Position Sizing ───
@@ -264,17 +282,37 @@ def validate_decision(decision: dict, has_position: bool = False, market_regime:
     if decision["action"] == "BUY":
         if sl >= entry:
             log.warning(f"BUY but SL ({sl}) >= entry ({entry}) — invalid")
+            try:
+                from ai.ai_memory import record_violation
+                record_violation(config.TRADING_SYMBOL, "BUY action but SL is >= entry.")
+            except Exception:
+                pass
             return False
         if tp <= entry:
             log.warning(f"BUY but TP ({tp}) <= entry ({entry}) — invalid")
+            try:
+                from ai.ai_memory import record_violation
+                record_violation(config.TRADING_SYMBOL, "BUY action but TP is <= entry.")
+            except Exception:
+                pass
             return False
 
     elif decision["action"] == "SELL":
         if sl <= entry:
             log.warning(f"SELL but SL ({sl}) <= entry ({entry}) — invalid")
+            try:
+                from ai.ai_memory import record_violation
+                record_violation(config.TRADING_SYMBOL, "SELL action but SL is <= entry.")
+            except Exception:
+                pass
             return False
         if tp >= entry:
             log.warning(f"SELL but TP ({tp}) >= entry ({entry}) — invalid")
+            try:
+                from ai.ai_memory import record_violation
+                record_violation(config.TRADING_SYMBOL, "SELL action but TP is >= entry.")
+            except Exception:
+                pass
             return False
 
     # Log sweep info if present

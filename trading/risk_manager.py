@@ -60,88 +60,64 @@ STREAK_MULTIPLIERS = {
 MIN_RISK_PCT = 0.25
 
 def calculate_position_size(balance: float, risk_pct: float,
-                            entry: float, stop_loss: float, market_regime: str = "UNKNOWN") -> float:
+                            entry: float, stop_loss: float, market_regime: str = "UNKNOWN",
+                            symbol: str = "XAUUSD", current_price: float = 1.0) -> float:
     """
-    Calculate position size based on ATR-derived risk, with dynamic streak and regime multipliers.
+    Calculate position size based on strict $50 fixed risk and exact lot boundaries.
     """
-    if risk_state.is_paused:
-        log.warning("🛑 Position size = 0 (Circuit breaker active — L5 streak).")
-        return 0.0
-
-    # Cap base risk
-    base_risk_pct = min(risk_pct, config.MAX_RISK_PER_TRADE)
-
-    # Apply Streak Multiplier
-    streak_multiplier = STREAK_MULTIPLIERS.get(risk_state.streak_count, 0.0)
+    # 1. Strict flat $50 risk (Non-negotiable)
+    risk_amount_usd = 50.0
     
-    # Apply Regime Multiplier
-    regime_multiplier = 1.0
-    if market_regime == "TRANSITIONING":
-        regime_multiplier = 0.50  # Half risk in chaos
-    elif market_regime == "RANGING_CHOPPY":
-        regime_multiplier = 0.75  # 75% risk in ranges
-        
-    # Track Peak Balance for Drawdown
-    global _peak_balance
-    if _peak_balance is None or balance > _peak_balance:
-        _peak_balance = balance
-
-    # Apply Drawdown Multiplier
-    drawdown_multiplier = 1.0
-    if _peak_balance and balance < _peak_balance:
-        drawdown_pct = ((_peak_balance - balance) / _peak_balance) * 100
-        if drawdown_pct >= 5.0:
-            drawdown_multiplier = 0.50
-            log.debug(f"📉 Drawdown ({drawdown_pct:.1f}%) > 5%. Applying 0.5x global multiplier.")
-
-    # Apply Daily Profit Multiplier (Protect Gains)
-    profit_multiplier = 1.0
-    try:
-        from data.trade_journal import get_stats
-        stats = get_stats()
-        today_pnl = stats.get("today_pnl", 0.0)
-        
-        if balance > 0 and today_pnl > 0:
-            starting_balance = balance - today_pnl
-            if starting_balance > 0:
-                daily_gain_pct = (today_pnl / starting_balance) * 100
-                if daily_gain_pct >= 3.0:
-                    profit_multiplier = 0.50
-                    log.info(f"🏆 Daily Target Hit ({daily_gain_pct:.1f}% >= 3.0%). Cutting lot size by 50% for the rest of the day to protect gains.")
-    except Exception as e:
-        log.debug(f"Failed to check daily profit: {e}")
-
-    combined_multiplier = streak_multiplier * regime_multiplier * drawdown_multiplier * profit_multiplier
-    final_risk_pct = max(MIN_RISK_PCT, base_risk_pct * combined_multiplier)
-
-    # Circuit breaker fail-safe
-    if combined_multiplier == 0.0:
-        log.warning("🛑 Position size = 0 (Multiplier is 0).")
-        return 0.0
-
-    risk_amount = balance * (final_risk_pct / 100)
     pip_risk = abs(entry - stop_loss)
-
     if pip_risk == 0:
         log.warning("Stop loss equals entry — cannot calculate position size")
         return 0.0
 
-    position_size = risk_amount / pip_risk
+    # Adjust risk amount if quote currency is not USD (e.g. JPY)
+    if "JPY" in symbol.upper() and "USD" in symbol.upper():
+        risk_amount_quote = risk_amount_usd * current_price
+    else:
+        risk_amount_quote = risk_amount_usd
 
-    # Cap at max lot size (convert lots to units: 0.30 lots = 30 units)
-    max_lots = getattr(config, 'MAX_LOT_SIZE', 0.30)
-    max_units = max_lots * 100  # 1 lot = 100 units in our system
-    if position_size > max_units:
-        log.warning(f"Position size {position_size:.2f} units ({position_size/100:.2f} lots) exceeds max {max_lots} lots — capping to {max_units} units")
-        position_size = max_units
+    # Raw position size calculation (units)
+    raw_position_size = risk_amount_quote / pip_risk
 
+    # 2. Determine units per lot based on symbol
+    symbol_upper = symbol.upper()
+    if "XAU" in symbol_upper:
+        units_per_lot = 100
+        min_lots = 0.02
+        max_lots = 0.08
+    elif "BTC" in symbol_upper or "ETH" in symbol_upper:
+        units_per_lot = 1
+        min_lots = 0.01
+        max_lots = 1.0
+    else:
+        # Forex (EURUSD, USDJPY)
+        units_per_lot = 100000
+        min_lots = 0.20
+        max_lots = 1.0
+
+    # Convert to lots for bounding and round to 2 decimal places (standard broker step)
+    calculated_lots = round(raw_position_size / units_per_lot, 2)
+
+    # 3. Apply Strict Non-Negotiable Bounds
+    if calculated_lots < min_lots:
+        log.warning(f"⚖️ Calculated {calculated_lots:.2f} lots is below {min_lots} minimum. Forcing {min_lots} lots.")
+        calculated_lots = min_lots
+    elif calculated_lots > max_lots:
+        log.warning(f"⚖️ Calculated {calculated_lots:.2f} lots exceeds {max_lots} maximum. Forcing {max_lots} lots.")
+        calculated_lots = max_lots
+
+    # Final units
+    position_size = calculated_lots * units_per_lot
     result = round(position_size, 2)
 
     # Audit Trail
     log.info(
-        f"Risk Audit: Base {base_risk_pct}% | Streak: {risk_state.streak_count} | "
-        f"Multiplier: {combined_multiplier}x | Final Risk: {final_risk_pct}% | "
-        f"Size: {result/100:.2f} lots"
+        f"Risk Audit [{symbol}]: Fixed Risk $50.00 | "
+        f"Bounds: [{min_lots} - {max_lots}] lots | "
+        f"Size: {calculated_lots:.2f} lots ({result} units)"
     )
 
     return result
@@ -163,12 +139,17 @@ def daily_loss_exceeded(balance: float, daily_pnl: float) -> bool:
             log.warning("Cannot check daily loss — balance is 0")
             return True  # Safety: stop trading if we can't determine balance
 
-        loss_pct = abs(daily_pnl / balance * 100) if daily_pnl < 0 else 0
+        # Calculate the absolute initial balance for the day
+        initial_balance = balance - daily_pnl
+        if initial_balance <= 0:
+            initial_balance = balance  # Fallback
+
+        loss_pct = abs(daily_pnl / initial_balance * 100) if daily_pnl < 0 else 0
 
         if loss_pct >= config.MAX_DAILY_LOSS:
             log.warning(
                 f"🛑 DAILY LOSS LIMIT HIT: {loss_pct:.1f}% loss "
-                f"(${daily_pnl:,.2f}) exceeds {config.MAX_DAILY_LOSS}% max"
+                f"(${daily_pnl:,.2f}) exceeds {config.MAX_DAILY_LOSS}% max of initial balance (${initial_balance:,.2f})"
             )
             return True
 

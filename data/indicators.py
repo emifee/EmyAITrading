@@ -209,11 +209,15 @@ def calculate_all(df: pd.DataFrame) -> dict:
 
         # Current candle volume vs average
         current_vol = df["volume"].iloc[-1]
+        prev_vol = df["volume"].iloc[-2] if len(df) > 1 else 0
         avg_vol = indicators["avg_volume"]
+        
         if avg_vol > 0:
             indicators["volume_ratio"] = round(current_vol / avg_vol, 2)
+            indicators["prev_volume_ratio"] = round(prev_vol / avg_vol, 2)
         else:
             indicators["volume_ratio"] = 0
+            indicators["prev_volume_ratio"] = 0
 
         # Current price
         indicators["current_price"] = round(current_price, 2)
@@ -280,13 +284,13 @@ def _detect_liquidity_sweep(df: pd.DataFrame, indicators: dict) -> dict:
 
         # ─── Bullish Sweep (sweep below support, close above) ─────
         # Long lower wick, price dipped below a key level but closed above it
-        if lower_wick > body * 1.5 and lower_wick > upper_wick * 2:
+        if lower_wick > body * 2.5 and lower_wick > upper_wick * 2.5:
             # Check if the wick went below a key level
             levels_to_check = [session_low, swing_low]
             for level in levels_to_check:
                 if level > 0 and candle["low"] < level and candle["close"] > level:
                     # Volume confirmation
-                    vol_spike = candle["volume"] > avg_volume * 1.2 if avg_volume > 0 else True
+                    vol_spike = candle["volume"] > avg_volume * 1.5 if avg_volume > 0 else True
 
                     if vol_spike:
                         result["sweep_detected"] = True
@@ -296,11 +300,11 @@ def _detect_liquidity_sweep(df: pd.DataFrame, indicators: dict) -> dict:
 
         # ─── Bearish Sweep (sweep above resistance, close below) ───
         # Long upper wick, price spiked above a key level but closed below it
-        if upper_wick > body * 1.5 and upper_wick > lower_wick * 2:
+        if upper_wick > body * 2.5 and upper_wick > lower_wick * 2.5:
             levels_to_check = [session_high, swing_high]
             for level in levels_to_check:
                 if level > 0 and candle["high"] > level and candle["close"] < level:
-                    vol_spike = candle["volume"] > avg_volume * 1.2 if avg_volume > 0 else True
+                    vol_spike = candle["volume"] > avg_volume * 1.5 if avg_volume > 0 else True
 
                     if vol_spike:
                         result["sweep_detected"] = True
