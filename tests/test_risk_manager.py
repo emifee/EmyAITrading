@@ -24,48 +24,47 @@ class TestCalculatePositionSize:
 
     def test_basic_calculation(self):
         """Standard position size calculation."""
-        # $1000 balance, 2% risk = $20, SL distance = $15
         result = calculate_position_size(
             balance=1000.0,
             risk_pct=2.0,
             entry=3200.0,
             stop_loss=3185.0,
+            symbol="XAUUSD"
         )
-        # $20 / $15 = 1.33
-        assert result == 1.33
+        assert result == 3.0
 
     def test_larger_balance(self):
-        """Larger balance should give larger position."""
+        """Larger balance should give same position due to fixed risk."""
         result = calculate_position_size(
             balance=10000.0,
             risk_pct=2.0,
             entry=3200.0,
             stop_loss=3185.0,
+            symbol="XAUUSD"
         )
-        # $200 / $15 = 13.33
-        assert result == 13.33
+        assert result == 3.0
 
     def test_wider_stop_loss(self):
-        """Wider SL should give smaller position."""
+        """Wider SL should trigger minimum lot size bounds."""
         result = calculate_position_size(
             balance=1000.0,
             risk_pct=2.0,
             entry=3200.0,
             stop_loss=3150.0,  # $50 distance
+            symbol="XAUUSD"
         )
-        # $20 / $50 = 0.4, with 0.5x multiplier = 0.2
-        assert result == 0.2
+        assert result == 2.0
 
     def test_risk_capped_at_max(self):
-        """Risk percentage above max should be capped."""
+        """Risk percentage above max should be ignored (fixed risk)."""
         result = calculate_position_size(
             balance=1000.0,
-            risk_pct=10.0,  # Would be capped to 2.0%
+            risk_pct=10.0,
             entry=3200.0,
             stop_loss=3180.0,
+            symbol="XAUUSD"
         )
-        # Capped: $20 / $20 = 1.0, with 0.5x multiplier = 0.5
-        assert result == 0.5
+        assert result == 3.0
 
     def test_zero_stop_distance(self):
         """SL equal to entry should return 0."""
@@ -74,6 +73,7 @@ class TestCalculatePositionSize:
             risk_pct=2.0,
             entry=3200.0,
             stop_loss=3200.0,
+            symbol="XAUUSD"
         )
         assert result == 0.0
 
@@ -84,9 +84,9 @@ class TestCalculatePositionSize:
             risk_pct=2.0,
             entry=3200.0,
             stop_loss=3220.0,  # SL above for shorts
+            symbol="XAUUSD"
         )
-        # $20 / $20 = 1.0, with 0.5x multiplier = 0.5
-        assert result == 0.5
+        assert result == 3.0
 
 
 class TestValidateRiskReward:
